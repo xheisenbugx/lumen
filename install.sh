@@ -19,16 +19,51 @@ repo="xheisenbugx/lumen"
 fresh=0
 dev=0
 
+usage() {
+  cat <<'EOF'
+Install Lumen: a small Neovim config dir that loads Lumen as a lazy.nvim plugin (like LazyVim).
+
+usage: install.sh [--appname <name>] [--fresh] [--repo <owner/name>] [--dev]
+
+  --appname <name>     install to ~/.config/<name>; start it with `NVIM_APPNAME=<name> nvim`
+                       (default: nvim, i.e. ~/.config/nvim)
+  --fresh              also back up the app's data, state and cache dirs (clean switch from another distro)
+  --repo <owner/name>  load Lumen from this GitHub repo (default: xheisenbugx/lumen)
+  --dev                load Lumen from the local checkout this script lives in (for contributors)
+  -h, --help           show this help
+
+Anything already at the destination is moved to <dir>.bak-<timestamp>, never deleted.
+EOF
+}
+
+die() {
+  echo "error: $*" >&2
+  echo "run with --help for usage" >&2
+  exit 1
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
-    --appname) appname="$2"; shift 2 ;;
-    --repo) repo="$2"; shift 2 ;;
+    --appname | --repo)
+      { [ $# -ge 2 ] && [ -n "$2" ] && [ "${2#-}" = "$2" ]; } || die "$1 needs a value"
+      if [ "$1" = --appname ]; then appname="$2"; else repo="$2"; fi
+      shift 2
+      ;;
     --fresh) fresh=1; shift ;;
     --dev) dev=1; shift ;;
-    -h|--help) sed -n '2,14p' "${BASH_SOURCE[0]:-$0}" 2>/dev/null || true; exit 0 ;;
-    *) echo "unknown option: $1" >&2; exit 1 ;;
+    -h | --help) usage; exit 0 ;;
+    *) die "unknown option: $1" ;;
   esac
 done
+
+# the app name becomes a directory under ~/.config, ~/.local/share…, so it must stay a plain name
+case "$appname" in
+  . | .. | */* | *[[:space:]]*) die "invalid --appname '$appname' (use a plain name such as 'lumen')" ;;
+esac
+case "$repo" in
+  */*) ;;
+  *) die "invalid --repo '$repo' (expected owner/name)" ;;
+esac
 
 for tool in git nvim; do
   command -v "$tool" >/dev/null || { echo "error: \`$tool\` is required" >&2; exit 1; }
@@ -42,7 +77,7 @@ fi
 if [ -n "$here" ] && [ -d "$here/starter" ]; then
   src="$here"
 else
-  [ "$dev" = 1 ] && { echo "error: --dev needs a local checkout (run ./install.sh from the repo)" >&2; exit 1; }
+  [ "$dev" = 1 ] && die "--dev needs a local checkout (run ./install.sh from the repo)"
   src="$(mktemp -d)"
   trap 'rm -rf "$src"' EXIT
   echo "• fetching the starter from github.com/$repo"
@@ -52,10 +87,8 @@ fi
 stamp="$(date +%Y%m%d-%H%M%S)"
 backup() {
   local dir="$1"
-  if [ -L "$dir" ]; then
-    rm "$dir"
-    echo "• removed old symlink $dir"
-  elif [ -e "$dir" ]; then
+  # a symlink (e.g. from a dotfiles repo) is renamed too; its target is left untouched
+  if [ -e "$dir" ] || [ -L "$dir" ]; then
     mv "$dir" "$dir.bak-$stamp"
     echo "• backed up $dir → $dir.bak-$stamp"
   fi
@@ -87,3 +120,12 @@ else
   echo "  start it with: NVIM_APPNAME=$appname nvim"
 fi
 echo "  first launch installs plugins, parsers and language servers — then run :checkhealth lumen"
+
+# warn early about tools the first launch needs (:checkhealth lumen lists them all)
+missing=()
+command -v rg >/dev/null || missing+=("rg (search)")
+command -v tree-sitter >/dev/null || missing+=("tree-sitter CLI (builds syntax parsers)")
+command -v cc >/dev/null || command -v gcc >/dev/null || command -v clang >/dev/null || missing+=("a C compiler")
+for m in ${missing[@]+"${missing[@]}"}; do
+  echo "! missing: $m"
+done
