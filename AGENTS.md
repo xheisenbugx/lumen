@@ -21,7 +21,9 @@ Startup has two phases (see the header of `lua/lumen/init.lua`):
    - loads settings: `lua/lumen/config.lua` merges its defaults with the user's `lua/config/lumen.lua`
      (and the legacy `lua/user/config.lua`, read first);
    - applies `lumen.options`, then the user's `config.options` (and the legacy `user.options`);
-   - registers the `LazyFile` event (`BufReadPost`, `BufNewFile`, `BufWritePre`).
+   - registers the `LazyFile` event (`BufReadPost`, `BufNewFile`, `BufWritePre`), and
+     `User LumenFileIdle`, fired one tick after the first file opens (after it is drawn) for
+     plugins that attach to open buffers on their own (gitsigns).
 2. **`require("lumen").setup(opts)`** is the `config` of the `lumen` plugin spec (`lazy = false`,
    `priority = 900`, so it runs after snacks.nvim at 1000). It merges the spec's `opts` (`packs` is
    ignored there), then runs the colors compat adapter, the colorscheme, autocmds, keymaps,

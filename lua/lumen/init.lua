@@ -33,6 +33,19 @@ function M.init()
   local Event = require("lazy.core.handler.event")
   Event.mappings.LazyFile = { id = "LazyFile", event = { "BufReadPost", "BufNewFile", "BufWritePre" } }
   Event.mappings["User LazyFile"] = Event.mappings.LazyFile
+
+  -- `User LumenFileIdle`: the same moment, one tick later, i.e. after the file is on screen.
+  -- For plugins that attach to already-open buffers by themselves (gitsigns) and so don't
+  -- need to sit in the file-open path.
+  vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile", "BufWritePost" }, {
+    group = vim.api.nvim_create_augroup("lumen_file_idle", { clear = true }),
+    once = true,
+    callback = function()
+      vim.schedule(function()
+        vim.api.nvim_exec_autocmds("User", { pattern = "LumenFileIdle", modeline = false })
+      end)
+    end,
+  })
 end
 
 ---@param opts? table settings from the lumen spec's `opts` (merged over lua/config/lumen.lua)

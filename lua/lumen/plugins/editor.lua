@@ -17,7 +17,8 @@ return {
   -- git signs, hunks & blame
   {
     "lewis6991/gitsigns.nvim",
-    event = "LazyFile",
+    -- right after the first file is displayed: setup() attaches to every open buffer
+    event = "User LumenFileIdle",
     opts = {
       signs = {
         add = { text = "▎" },
