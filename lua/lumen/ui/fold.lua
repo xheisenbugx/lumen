@@ -55,10 +55,18 @@ function M.text()
   if not ok then
     chunks = { { vim.fn.getline(start), "Folded" } }
   end
-  -- tabs render as spaces in foldtext
-  local ts = string.rep(" ", vim.bo[buf].tabstop)
+  -- foldtext can't show tabs: expand them to the next tab stop so the text stays aligned
+  local ts, col = vim.bo[buf].tabstop, 0
   for _, c in ipairs(chunks) do
-    c[1] = c[1]:gsub("\t", ts)
+    local parts = vim.split(c[1], "\t", { plain = true })
+    for i, part in ipairs(parts) do
+      col = col + vim.fn.strdisplaywidth(part)
+      if i < #parts then
+        local n = ts - col % ts
+        parts[i], col = part .. string.rep(" ", n), col + n
+      end
+    end
+    c[1] = table.concat(parts)
   end
   chunks[#chunks + 1] = { " ⋯ ", "LumenFoldDots" }
   chunks[#chunks + 1] = { (" %d lines "):format(stop - start + 1), "LumenFoldCount" }

@@ -262,6 +262,18 @@ local function run()
     assert(chunks[#chunks][1]:find("6 lines"), "missing count")
   end)
 
+  check("fold text expands tabs to tab stops", function()
+    vim.cmd("enew")
+    vim.bo.tabstop = 4
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { "\tab\tc", "x", "y" })
+    vim.v.foldstart, vim.v.foldend = 1, 3
+    local text = table.concat(vim.tbl_map(function(c)
+      return c[1]
+    end, require("lumen.ui.fold").text()))
+    vim.cmd("bwipeout!")
+    assert(vim.startswith(text, "    ab  c "), vim.inspect(text))
+  end)
+
   check("diagnostics cycle", function()
     local d = require("lumen.diagnostics")
     d.setup()
