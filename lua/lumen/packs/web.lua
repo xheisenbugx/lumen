@@ -13,6 +13,6 @@ return {
   tools = { "prettierd" },
   formatters = { html = prettier, css = prettier, scss = prettier, less = prettier },
   plugins = {
-    { "windwp/nvim-ts-autotag", event = "LazyFile", opts = {} },
+    { "windwp/nvim-ts-autotag", ft = require("lumen.packs").autotag_ft, opts = {} },
   },
 }

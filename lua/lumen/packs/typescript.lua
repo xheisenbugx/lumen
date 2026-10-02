@@ -72,7 +72,7 @@ return {
   plugins = {
     {
       "windwp/nvim-ts-autotag",
-      event = "LazyFile",
+      ft = require("lumen.packs").autotag_ft,
       opts = {
         -- plain .ts has no JSX, yet autotag would reparse the whole buffer (with injections) on
         -- every InsertLeave and on every `>` typed: ~30ms each on a 40k-line file

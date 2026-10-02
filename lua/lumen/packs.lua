@@ -30,6 +30,41 @@ local state_file = vim.fn.stdpath("state") .. "/lumen/packs.json"
 ---@field plugins? LazySpec[]
 ---@field setup? fun() runs at startup when the pack is enabled (e.g. filetype detection)
 
+-- filetypes nvim-ts-autotag handles (its configs + aliases, minus plain typescript, which has
+-- no JSX): packs load it on these instead of on every file
+M.autotag_ft = {
+  "astro",
+  "blade",
+  "dot",
+  "elixir",
+  "eruby",
+  "glimmer",
+  "handlebars",
+  "hbs",
+  "heex",
+  "html",
+  "htmlangular",
+  "htmldjango",
+  "javascript",
+  "javascript.glimmer",
+  "javascript.jsx",
+  "javascriptreact",
+  "liquid",
+  "markdown",
+  "php",
+  "rescript",
+  "rust",
+  "svelte",
+  "templ",
+  "twig",
+  "typescript.glimmer",
+  "typescript.tsx",
+  "typescriptreact",
+  "vento",
+  "vue",
+  "xml",
+}
+
 ---@return {enabled:string[], disabled:string[], dismissed:string[]}
 function M.state()
   local f = io.open(state_file, "r")

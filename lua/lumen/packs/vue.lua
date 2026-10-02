@@ -29,5 +29,5 @@ return {
   },
   tools = { "prettierd" },
   formatters = { vue = { "prettierd", "prettier", stop_after_first = true } },
-  plugins = { { "windwp/nvim-ts-autotag", event = "LazyFile", opts = {} } },
+  plugins = { { "windwp/nvim-ts-autotag", ft = require("lumen.packs").autotag_ft, opts = {} } },
 }
