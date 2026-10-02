@@ -50,28 +50,40 @@ function M.setup(opts)
     vim.cmd.colorscheme("lumen")
   end
 
-  require("lumen.autocmds")
-  require("lumen.keymaps")
-  require("lumen.commands")
+  -- everything else uses snacks.nvim. Normally it is already loaded (priority 1000 > 900), but on
+  -- a first launch lazy.nvim loads the install colorscheme (`lumen`) before anything else, so wait
+  M.after_snacks(function()
+    require("lumen.autocmds")
+    require("lumen.keymaps")
+    require("lumen.commands")
 
-  if config.statusline then
-    require("lumen.ui.statusline").setup()
-  end
-  if config.tabline then
-    require("lumen.ui.tabline").setup()
-  end
-  if config.winbar then
-    require("lumen.ui.winbar").setup()
-  end
-  if config.scrollbar then
-    require("lumen.ui.scrollbar").setup()
-  end
-  require("lumen.ui.fold").setup()
+    if config.statusline then
+      require("lumen.ui.statusline").setup()
+    end
+    if config.tabline then
+      require("lumen.ui.tabline").setup()
+    end
+    if config.winbar then
+      require("lumen.ui.winbar").setup()
+    end
+    if config.scrollbar then
+      require("lumen.ui.scrollbar").setup()
+    end
+    require("lumen.ui.fold").setup()
 
-  -- user hooks, loaded last so they win (LazyVim-style names, plus the old lua/user/*)
-  for _, mod in ipairs({ "config.autocmds", "config.keymaps", "user.autocmds", "user.keymaps" }) do
-    Lumen.try_require(mod)
+    -- user hooks, loaded last so they win (LazyVim-style names, plus the old lua/user/*)
+    for _, mod in ipairs({ "config.autocmds", "config.keymaps", "user.autocmds", "user.keymaps" }) do
+      Lumen.try_require(mod)
+    end
+  end)
+end
+
+---@param fn fun()
+function M.after_snacks(fn)
+  if _G.Snacks then
+    return fn()
   end
+  Lumen.on_load("snacks.nvim", fn)
 end
 
 return M
