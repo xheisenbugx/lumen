@@ -39,6 +39,12 @@ function M.snapshot()
   if not s then
     return
   end
+  -- an update that changed nothing would otherwise add a duplicate every time and, after KEEP
+  -- of them, evict every snapshot worth rolling back to
+  local newest = M.snapshots()[1]
+  if newest and read(newest.path) == s then
+    return newest.path
+  end
   local path = ("%s/lock-%s.json"):format(snap_dir, os.date("%Y%m%d-%H%M%S"))
   write(path, s)
   local all = M.snapshots()

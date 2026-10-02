@@ -424,6 +424,10 @@ local function run()
     local path = up.snapshot()
     assert(path and vim.uv.fs_stat(path), "snapshot not written")
     assert(up.snapshots()[1].path == path, "snapshot not listed first")
+    -- an unchanged lockfile reuses the newest snapshot instead of evicting older ones
+    local count = #up.snapshots()
+    vim.wait(1100) -- snapshot names have a 1s resolution
+    assert(up.snapshot() == path and #up.snapshots() == count, "duplicate snapshot written")
     local result
     up.verify(function(ok, errors)
       result = { ok = ok, errors = errors }
