@@ -281,6 +281,59 @@ local function run()
     vim.cmd("cclose")
   end)
 
+  check("tasks: escaping, bad cwd, stream order, rustc / python locations", function()
+    local tasks = require("lumen.tasks")
+    -- `%` in a task name / command must not be eaten by the terminal winbar
+    tasks.run_terminal({ name = "date +%s", cmd = "date +%s", cwd = vim.fn.getcwd(), source = "config" })
+    local win = vim.api.nvim_get_current_win()
+    local bar = vim.api.nvim_eval_statusline(vim.wo[win].winbar, { winid = win, use_winbar = true }).str
+    vim.api.nvim_win_close(win, true)
+    assert(select(2, bar:gsub("date %+%%s", "")) == 2, "winbar: " .. bar)
+    -- a missing cwd used to throw and leave the task "running" forever
+    local notify = vim.notify
+    vim.notify = function() end
+    local ok, err =
+      pcall(tasks.run_background, { name = "bad", cmd = "true", cwd = "/nonexistent/lumen", source = "x" })
+    vim.notify = notify
+    assert(ok, err)
+    assert(not next(tasks.running), "task stuck in running")
+    -- stdout without a final newline must not swallow stderr's first line; `~` cwd expands
+    tasks.run_background({
+      name = "streams",
+      cmd = "printf 'out.c:1:1: error: a'; printf 'err.c:2:3: error: b' >&2; exit 1",
+      cwd = "~",
+      source = "x",
+    })
+    assert(wait(5000, function()
+      return not next(tasks.running)
+    end))
+    vim.cmd("cclose")
+    local files = vim.tbl_map(function(e)
+      return vim.fn.fnamemodify(vim.fn.bufname(e.bufnr), ":t")
+    end, vim.fn.getqflist())
+    assert(vim.deep_equal(files, { "out.c", "err.c" }), vim.inspect(files))
+    -- rustc puts the location on a " --> file:line:col" line; python tracebacks use File "x", line n
+    vim.fn.setqflist({}, " ", {
+      efm = tasks._efm(),
+      lines = {
+        "error[E0425]: cannot find value `x` in this scope",
+        " --> src/main.rs:2:13",
+        "  |",
+        '  File "app/x.py", line 3, in <module>',
+      },
+    })
+    local got = vim.tbl_map(
+      function(e)
+        return ("%s:%d:%d"):format(vim.fn.bufname(e.bufnr), e.lnum, e.col)
+      end,
+      vim.tbl_filter(function(e)
+        return e.valid == 1
+      end, vim.fn.getqflist())
+    )
+    assert(vim.deep_equal(got, { "src/main.rs:2:13", "app/x.py:3:0" }), vim.inspect(got))
+    vim.fn.setqflist({}, "r", { items = {} })
+  end)
+
   check("why: explains the lua buffer", function()
     vim.cmd.edit("lua/lumen/init.lua")
     wait(20000 * SLOW, function()

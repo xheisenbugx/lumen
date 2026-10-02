@@ -252,8 +252,19 @@ end
 
 local term ---@type snacks.win?
 
+local function esc(s)
+  return (s:gsub("%%", "%%%%"))
+end
+
+-- `cwd = "~/proj"` from the user's config: neither vim.system nor the terminal expand `~`
+---@param task lumen.Task
+local function normalize(task)
+  return vim.tbl_extend("force", task, { cwd = vim.fs.normalize(task.cwd) })
+end
+
 ---@param task lumen.Task
 function M.run_terminal(task)
+  task = normalize(task)
   remember(task, "terminal")
   if term and term:valid() then
     term:close()
@@ -267,24 +278,37 @@ function M.run_terminal(task)
       position = "bottom",
       height = 0.3,
       title = (" %s "):format(task.name),
-      wo = { winbar = ("%%#LumenWinbarFile#  %s  %%#LumenWinbar#%s"):format(task.name, task.cmd:gsub("%%", "%%%%")) },
+      -- both are statusline text: a raw `%` (e.g. `date +%s`) would be eaten or error
+      wo = { winbar = ("%%#LumenWinbarFile#  %s  %%#LumenWinbar#%s"):format(esc(task.name), esc(task.cmd)) },
     },
   })
 end
 
--- extra errorformats on top of 'errorformat': tsc (plain and pretty), then the defaults
--- (gcc/clang/rustc/go/eslint-unix/ruff all use file:line:col: message)
+-- extra errorformats on top of 'errorformat': tsc (plain and pretty), rustc/cargo (the location
+-- is on a ` --> file:line:col` line after the message), python tracebacks, then the defaults
+-- (gcc/clang/go/eslint-unix/ruff all use file:line:col: message)
 -- (global value on purpose: buffer-local ones, e.g. cargo's, can't parse other tools)
 local function efm()
   return table.concat({
     "%f(%l\\,%c): %trror TS%n: %m",
     "%f:%l:%c - %trror TS%n: %m",
+    "%E%trror[E%n]: %m",
+    "%W%tarning[%.%#]: %m",
+    "%E%trror: %m",
+    "%W%tarning: %m",
+    "%C%*\\s--> %f:%l:%c",
+    "%-C%*\\s|%.%#",
+    "%-C%*\\d%*\\s|%.%#",
+    "%-C%*\\s= %.%#",
+    '%*\\sFile "%f"\\, line %l\\, %m',
     vim.go.errorformat,
   }, ",")
 end
+M._efm = efm -- for tests
 
 ---@param task lumen.Task
 function M.run_background(task)
+  task = normalize(task)
   remember(task, "background")
   local id = task.cwd .. task.cmd
   if M.running[id] then
@@ -315,16 +339,25 @@ function M.run_background(task)
     )
   end
   local shell = vim.o.shell
-  vim.system({ shell, "-c", task.cmd }, { cwd = task.cwd, text = true }, function(out)
+  -- vim.system throws right away for a missing cwd or shell: don't leave the task "running"
+  local ok, err = pcall(vim.system, { shell, "-c", task.cmd }, { cwd = task.cwd, text = true }, function(out)
     vim.schedule(function()
       local secs = (vim.uv.hrtime() - M.running[id].started) / 1e9
       M.running[id] = nil
       vim.cmd.redrawstatus()
-      local lines = vim.split((out.stdout or "") .. (out.stderr or ""), "\n", { trimempty = true })
+      -- split the streams apart: stdout without a final newline must not swallow stderr's first line
+      local lines = vim.split(out.stdout or "", "\n", { trimempty = true })
+      vim.list_extend(lines, vim.split(out.stderr or "", "\n", { trimempty = true }))
       vim.fn.setqflist({}, " ", { title = task.name, lines = lines, efm = efm() })
-      local valid = #vim.tbl_filter(function(e)
-        return e.valid == 1
-      end, vim.fn.getqflist())
+      -- summaries such as cargo's "error: could not compile" parse as entries without a file
+      local items, valid = vim.fn.getqflist(), 0
+      for _, e in ipairs(items) do
+        if e.valid == 1 and e.bufnr == 0 then
+          e.valid = 0
+        end
+        valid = valid + e.valid
+      end
+      vim.fn.setqflist({}, "r", { items = items })
       if out.code == 0 then
         Lumen.notify(("✓ %s finished in %.1fs"):format(task.name, secs))
       else
@@ -337,6 +370,10 @@ function M.run_background(task)
       end
     end)
   end)
+  if not ok then
+    M.running[id] = nil
+    Lumen.error(("%s: %s"):format(task.name, err))
+  end
 end
 
 function M.status()
