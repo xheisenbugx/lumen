@@ -979,13 +979,15 @@ local function run()
     pcall(logger.info, logger, "Compiling parser")
     Logger.lumen_quiet = Logger.lumen_quiet - 1
     assert(echoed() == 0, "echoed while a Lumen install runs")
-    -- outside Lumen's installs (a user's :TSInstall) it passes through to the original
-    local orig, passed = Logger.lumen_info, false
+    -- outside Lumen's installs (a user's :TSInstall) it passes through to the original.
+    -- Force "no Lumen install running": on a fresh machine (CI) the startup installs may still be going.
+    local orig, quiet, passed = Logger.lumen_info, Logger.lumen_quiet, false
+    Logger.lumen_quiet = 0
     Logger.lumen_info = function()
       passed = true
     end
     pcall(logger.info, logger, "Compiling parser")
-    Logger.lumen_info = orig
+    Logger.lumen_info, Logger.lumen_quiet = orig, quiet
     assert(passed, "user-run installs must stay verbose")
   end)
 
