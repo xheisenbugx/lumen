@@ -50,6 +50,16 @@ function M.report(buf)
   )
   add()
 
+  -- terminals, quickfix, scratch buffers…: no pack, parser or server can apply, so say that
+  -- instead of reporting "no `` parser installed"
+  if ft == "" then
+    item(INFO, "this buffer has no filetype, so no language pack, parser, server, formatter or linter applies")
+    if name ~= "" and vim.bo[buf].buftype == "" then
+      item(INFO, "set one with `:setfiletype <name>` if detection missed it")
+    end
+    return lines
+  end
+
   -- ── pack ──
   add("## Language pack")
   local pack, on = pack_for(ft)

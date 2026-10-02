@@ -363,6 +363,14 @@ local function run()
     assert(text:find("Project root", 1, true), "root missing")
   end)
 
+  check("why: buffers without a filetype get a sensible report", function()
+    vim.cmd("enew")
+    local text = table.concat(require("lumen.why").report(0), "\n")
+    vim.cmd("bwipeout!")
+    assert(not text:find("``", 1, true), text)
+    assert(text:find("no filetype", 1, true), text)
+  end)
+
   check("scrollbar: thumb + diagnostic mark", function()
     vim.cmd("enew")
     local lines = {}
