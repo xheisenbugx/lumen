@@ -683,6 +683,45 @@ local function run()
     assert(res.ok and res.ft ~= "help", "q failed: " .. vim.inspect(res) .. (out.stderr or ""))
   end)
 
+  check("ai pack turns on Copilot inline suggestions", function()
+    -- regression: copilot attached but Neovim's inline completion stayed off, so no suggestions
+    if not vim.lsp.inline_completion then
+      return -- Neovim < 0.12
+    end
+    require("lumen.packs.ai").setup()
+    vim.cmd("enew")
+    local buf = vim.api.nvim_get_current_buf()
+    -- a fake in-process "copilot" server that offers inline completions
+    local id = vim.lsp.start({
+      name = "copilot",
+      cmd = function()
+        return {
+          request = function(method, _, callback)
+            if method == "initialize" then
+              callback(nil, { capabilities = { inlineCompletionProvider = true } })
+            end
+            return true, 1
+          end,
+          notify = function()
+            return true
+          end,
+          is_closing = function()
+            return false
+          end,
+          terminate = function() end,
+        }
+      end,
+    }, { bufnr = buf })
+    assert(
+      wait(3000, function()
+        return vim.lsp.inline_completion.is_enabled({ bufnr = buf })
+      end),
+      "inline completion not enabled for copilot"
+    )
+    vim.lsp.get_client_by_id(id):stop(true)
+    vim.cmd("bwipeout!")
+  end)
+
   check("every pack reference resolves (parsers, servers, mason, formatters, linters)", function()
     require("lazy").load({ plugins = { "nvim-lspconfig", "conform.nvim", "nvim-lint", "mason-lspconfig.nvim" } })
     local parsers = require("nvim-treesitter.parsers")

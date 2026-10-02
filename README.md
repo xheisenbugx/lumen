@@ -465,9 +465,9 @@ LazyVim's, so your muscle memory carries over.
 | `<C-/>` | terminal | `<leader>l` / `L` | Lazy / Lumen menu |
 
 **Packs:** `dap` adds `<leader>d*` and `F5` `F10` `F11`, `test` adds `<leader>t*`, `ai` adds
-`<leader>a*`, `git` adds Octo issues / PRs / review, `yazi` adds `<leader>y` / `Y`, `sql` adds the
-`<leader>D*` database keys (drawer, connections, scratchpads, query history), and `org` brings
-org.nvim's own `<leader>o*` keys (agenda, capture, clocking).
+`<leader>a*` (and `<Tab>` accepts a Copilot suggestion in insert mode), `git` adds Octo issues / PRs / review,
+`yazi` adds `<leader>y` / `Y`, `sql` adds the `<leader>D*` database keys (drawer, connections, scratchpads,
+query history), and `org` brings org.nvim's own `<leader>o*` keys (agenda, capture, clocking).
 
 Search everything live with `<leader>sk` or `:Lumen keys`.
 
