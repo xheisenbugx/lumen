@@ -35,6 +35,8 @@ local KINDS = {
 local cache = {}
 ---@type table<integer, lumen.winbar.Symbol[]> last rendered crumbs per window (for clicks)
 local rendered = {}
+---@type table<string, {cwd:string, icon:boolean, str:string, file:string, width:integer}> path part per file name
+local heads = {}
 
 local function esc(s)
   return (s:gsub("%%", "%%%%"))
@@ -75,12 +77,43 @@ local function nest(flat)
   return root
 end
 
+-- (line, col) is at or after position `p`
+local function after(line, col, p)
+  return line > p.line or (line == p.line and col >= p.character)
+end
+
+-- sort every level by start (outer ranges first) and record, per index, the furthest end seen
+-- so far: path_at can then binary-search a level instead of scanning thousands of symbols
+local function index(list)
+  table.sort(list, function(a, b)
+    local sa, sb = a.range.start, b.range.start
+    if sa.line ~= sb.line then
+      return sa.line < sb.line
+    elseif sa.character ~= sb.character then
+      return sa.character < sb.character
+    end
+    local ea, eb = a.range["end"], b.range["end"]
+    return ea.line > eb.line or (ea.line == eb.line and ea.character > eb.character)
+  end)
+  local ends, far = {}, nil
+  for i, s in ipairs(list) do
+    local e = s.range["end"]
+    if not far or e.line > far.line or (e.line == far.line and e.character > far.character) then
+      far = e
+    end
+    ends[i] = far
+    index(s.children)
+  end
+  list.ends = ends
+  return list
+end
+
 local function normalize(result)
   if not result or #result == 0 then
     return {}
   end
   if result[1].location then
-    return nest(result)
+    return index(nest(result))
   end
   local function walk(list)
     local out = {}
@@ -89,7 +122,7 @@ local function normalize(result)
     end
     return out
   end
-  return walk(result)
+  return index(walk(result))
 end
 
 local pending = {}
@@ -129,22 +162,42 @@ function M.request(buf)
   end
 end
 
+-- first (outermost) symbol of a level containing (line, col): binary search for the last symbol
+-- starting at or before it, then walk back only while an earlier range could still reach it
+---@param list lumen.winbar.Symbol[]
+local function find(list, line, col)
+  local lo, hi, idx = 1, #list, 0
+  while lo <= hi do
+    local mid = math.floor((lo + hi) / 2)
+    if after(line, col, list[mid].range.start) then
+      idx, lo = mid, mid + 1
+    else
+      hi = mid - 1
+    end
+  end
+  local found
+  local ends = list.ends
+  for i = idx, 1, -1 do
+    local e = ends and ends[i]
+    if e and (e.line < line or (e.line == line and e.character < col)) then
+      break
+    end
+    if contains(list[i].range, line, col) then
+      found = list[i]
+    end
+  end
+  return found
+end
+
 ---@param symbols lumen.winbar.Symbol[]
 local function path_at(symbols, line, col)
   local out = {}
-  local list = symbols
-  while list do
-    local next_list
-    for _, s in ipairs(list) do
-      if contains(s.range, line, col) then
-        if KINDS[s.kind] then
-          out[#out + 1] = s
-        end
-        next_list = s.children
-        break
-      end
+  local s = find(symbols, line, col)
+  while s do
+    if KINDS[s.kind] then
+      out[#out + 1] = s
     end
-    list = next_list
+    s = find(s.children, line, col)
   end
   return out
 end
@@ -157,23 +210,32 @@ function M.render()
     return ""
   end
 
-  -- path: dim directories, bright filename
-  local rel = vim.fn.fnamemodify(name, ":~:.")
-  local parts = vim.split(rel, "/", { plain = true })
-  local file = table.remove(parts)
-  if #parts > 3 then
-    parts = { "…", parts[#parts - 1], parts[#parts] }
+  -- path: dim directories, bright filename (built once per file name + cwd, which `:~:.` uses)
+  local cwd = vim.fn.getcwd()
+  local head = heads[name]
+  if not head or head.cwd ~= cwd or not head.icon then
+    local rel = vim.fn.fnamemodify(name, ":~:.")
+    local parts = vim.split(rel, "/", { plain = true })
+    local file = table.remove(parts)
+    if #parts > 3 then
+      parts = { "…", parts[#parts - 1], parts[#parts] }
+    end
+    local str = { "%#LumenWinbar# " }
+    for _, p in ipairs(parts) do
+      str[#str + 1] = "%#LumenWinbar#" .. esc(p) .. SEP
+    end
+    -- icons are unavailable during early startup redraws: don't cache without one
+    local icon, icon_hl = Lumen.icon("file", name)
+    if icon then
+      str[#str + 1] = "%#" .. icon_hl .. "#" .. icon .. " "
+    end
+    head =
+      { cwd = cwd, icon = icon ~= nil, str = table.concat(str), file = esc(file), width = vim.fn.strdisplaywidth(rel) }
+    heads[name] = head
   end
-  local out = { "%#LumenWinbar# " }
-  for _, p in ipairs(parts) do
-    out[#out + 1] = "%#LumenWinbar#" .. esc(p) .. SEP
-  end
-  local icon, icon_hl = Lumen.icon("file", name)
-  if icon then
-    out[#out + 1] = "%#" .. icon_hl .. "#" .. icon .. " "
-  end
+  local out = { head.str }
   local active = win == vim.api.nvim_get_current_win()
-  out[#out + 1] = "%#" .. (active and "LumenWinbarFile" or "LumenWinbar") .. "#" .. esc(file)
+  out[#out + 1] = "%#" .. (active and "LumenWinbarFile" or "LumenWinbar") .. "#" .. head.file
   if vim.bo[buf].modified then
     out[#out + 1] = "%#LumenStlModified# ●"
   end
@@ -184,13 +246,15 @@ function M.render()
   if entry then
     local cursor = vim.api.nvim_win_get_cursor(win)
     local crumbs = path_at(entry.symbols, cursor[1] - 1, cursor[2])
-    local budget = vim.api.nvim_win_get_width(win) - vim.fn.strdisplaywidth(rel) - 10
+    local budget = vim.api.nvim_win_get_width(win) - head.width - 10
     -- drop outermost crumbs until it fits
     local first = 1
     local function width(from)
       local w = 0
       for i = from, #crumbs do
-        w = w + vim.fn.strdisplaywidth(crumbs[i].name) + 5
+        local c = crumbs[i]
+        c.width = c.width or vim.fn.strdisplaywidth(c.name)
+        w = w + c.width + 5
       end
       return w
     end
@@ -303,6 +367,7 @@ function M.setup()
     callback = function(ev)
       if ev.event == "BufWipeout" then
         cache[ev.buf] = nil
+        heads[vim.api.nvim_buf_get_name(ev.buf)] = nil
       else
         rendered[tonumber(ev.match)] = nil
       end
