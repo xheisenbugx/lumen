@@ -140,8 +140,12 @@ local function diagnostics(buf)
   return table.concat(out, " ")
 end
 
+-- whether the last render showed lsp progress (it then needs one more redraw to clear)
+local progress_shown = false
+
 local function lsp(buf)
   local status = vim.lsp.status()
+  progress_shown = status ~= ""
   if status ~= "" then
     local frame = spinner[math.floor(vim.uv.hrtime() / 1e8) % #spinner + 1]
     -- truncate by characters, then escape: cutting bytes could split a multibyte char or a "%%"
@@ -279,24 +283,27 @@ function M.setup()
       icon_cache = {}
     end,
   })
-  -- keep the lsp spinner moving & clear it when work finishes
-  local timer = vim.uv.new_timer()
+  -- lsp progress: servers can send hundreds of messages per second and each :redrawstatus is a
+  -- synchronous screen update, so redraw at most every 100ms (the latest message still shows),
+  -- and keep ticking while progress is visible so the spinner moves and clears when work ends
+  local timer, last = assert(vim.uv.new_timer()), 0
+  local function tick(delay)
+    if not timer:is_active() then
+      timer:start(delay, 0, function()
+        vim.schedule(function()
+          last = vim.uv.now()
+          vim.cmd.redrawstatus()
+          if progress_shown then
+            tick(100)
+          end
+        end)
+      end)
+    end
+  end
   vim.api.nvim_create_autocmd("LspProgress", {
     group = group,
     callback = function()
-      vim.cmd.redrawstatus()
-      if timer and not timer:is_active() then
-        timer:start(
-          100,
-          100,
-          vim.schedule_wrap(function()
-            vim.cmd.redrawstatus()
-            if vim.lsp.status() == "" then
-              timer:stop()
-            end
-          end)
-        )
-      end
+      tick(math.max(0, 100 - (vim.uv.now() - last)))
     end,
   })
   vim.api.nvim_create_autocmd({ "RecordingEnter", "RecordingLeave", "DiagnosticChanged", "BufWipeout" }, {
