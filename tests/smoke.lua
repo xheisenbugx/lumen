@@ -468,6 +468,37 @@ local function run()
     assert(res.lsp, "lua_ls did not attach")
   end)
 
+  check("nvim -d: no diff pane gets a winbar (panes stay aligned)", function()
+    local probe = [[
+      vim.defer_fn(function()
+        local bars = {}
+        for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+          if vim.api.nvim_win_get_config(w).relative == "" then
+            bars[#bars + 1] = { diff = vim.wo[w].diff, winbar = vim.wo[w].winbar }
+          end
+        end
+        io.stdout:write(vim.json.encode(bars) .. "\n")
+        vim.cmd("qa!")
+      end, 500)
+    ]]
+    local out = vim
+      .system({
+        vim.v.progpath,
+        "--headless",
+        "-d",
+        "lua/lumen/ui/fold.lua",
+        "lua/lumen/ui/tabline.lua",
+        "-c",
+        "lua " .. probe:gsub("\n", " "),
+      }, { text = true })
+      :wait(20000 * SLOW)
+    local bars = vim.json.decode((out.stdout or ""):match("%[.*%]") or "[]")
+    assert(#bars == 2, "expected 2 windows: " .. (out.stdout or "") .. (out.stderr or ""))
+    for _, b in ipairs(bars) do
+      assert(b.diff and b.winbar == "", vim.inspect(bars))
+    end
+  end)
+
   check("every pack reference resolves (parsers, servers, mason, formatters, linters)", function()
     require("lazy").load({ plugins = { "nvim-lspconfig", "conform.nvim", "nvim-lint", "mason-lspconfig.nvim" } })
     local parsers = require("nvim-treesitter.parsers")

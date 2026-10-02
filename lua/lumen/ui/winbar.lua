@@ -259,15 +259,21 @@ end
 
 function M.setup()
   local group = vim.api.nvim_create_augroup("lumen_winbar", { clear = true })
-  vim.api.nvim_create_autocmd({ "BufWinEnter", "WinEnter", "FileType", "OptionSet" }, {
+  vim.api.nvim_create_autocmd({ "BufWinEnter", "WinEnter", "FileType" }, {
     group = group,
-    callback = function(ev)
-      if ev.event == "OptionSet" and ev.match ~= "diff" then
-        return
-      end
+    callback = function()
       attach()
     end,
   })
+  -- diff panes must all have a winbar or none, or their lines are off by one row. `nvim -d`
+  -- sets 'diff' while starting, when OptionSet doesn't fire, and `:diffoff!` changes every window
+  local function attach_all()
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      attach(win)
+    end
+  end
+  vim.api.nvim_create_autocmd("OptionSet", { group = group, pattern = "diff", callback = attach_all })
+  vim.api.nvim_create_autocmd("VimEnter", { group = group, callback = attach_all })
 
   local timer = assert(vim.uv.new_timer())
   local function refresh(buf)
