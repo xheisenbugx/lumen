@@ -85,7 +85,7 @@ function M.report(buf)
   add("## Language pack")
   local pack, on = pack_for(ft)
   if not pack then
-    item(INFO, "no Lumen pack targets `" .. ft .. "`", nil)
+    item(INFO, ft == "" and "no filetype, so no pack" or ("no Lumen pack targets `" .. ft .. "`"))
   elseif on then
     item(OK, ("`%s` enabled"):format(pack))
   else
@@ -98,7 +98,9 @@ function M.report(buf)
   local lang = vim.treesitter.language.get_lang(ft) or ft
   local has_parser = pcall(vim.treesitter.language.add, lang) and vim.treesitter.language.add(lang)
   local active = vim.treesitter.highlighter.active[buf] ~= nil
-  if active then
+  if ft == "" then
+    item(INFO, "no filetype, so no parser")
+  elseif active then
     item(OK, ("highlighting with the `%s` parser"):format(lang))
   elseif has_parser then
     item(WARN, ("parser `%s` installed but highlighting is off"):format(lang), "<leader>uT")
@@ -171,7 +173,7 @@ function M.report(buf)
   if seen == 0 then
     item(
       INFO,
-      "no language server configured for `" .. ft .. "`",
+      ft == "" and "no language server (no filetype)" or ("no language server configured for `" .. ft .. "`"),
       pack and not on and (":Lumen packs enable " .. pack) or nil
     )
   end

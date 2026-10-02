@@ -474,6 +474,12 @@ local function run()
     vim.cmd("bwipeout!")
     assert(ok, json)
     assert(json:find("`jsonls` not installed (Mason package `json-lsp` missing)", 1, true), json)
+
+    -- a buffer without filetype isn't "missing the `` parser"
+    vim.cmd("enew")
+    local empty = table.concat(why.report(0), "\n")
+    vim.cmd("bwipeout!")
+    assert(not empty:find("``", 1, true), empty)
   end)
 
   check("why: buffers without a filetype get a sensible report", function()
