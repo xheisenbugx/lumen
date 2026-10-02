@@ -29,14 +29,13 @@ function M.palette(variant)
   -- user palette overrides: colors = { night = { bg = "#000000" }, dawn = { ... } }
   p = vim.tbl_extend("force", p, (config.colors or {})[variant] or {})
   -- the "glow" used for focus across the UI; any palette key or a hex color
-  local accent = config.accent or "amber"
+  local accent = type(config.accent) == "string" and config.accent or "amber"
   p.accent = p[accent] or (accent:match("^#%x%x%x%x%x%x$") and accent) or p.amber
   return p, variant
 end
 
----@param variant? "night"|"dawn" nil follows 'background'
-function M.load(variant)
-  loading = true
+---@param variant? "night"|"dawn"
+local function load(variant)
   local p, v = M.palette(variant)
   local config = require("lumen.config")
 
@@ -52,16 +51,24 @@ function M.load(variant)
     blend = M.blend,
     light = v == "dawn",
   })
+  local errors = {}
   if type(config.on_highlights) == "function" then
     local ok, err = pcall(config.on_highlights, groups, p)
     if not ok then
-      vim.schedule(function()
-        vim.notify("Lumen: on_highlights failed\n" .. err, vim.log.levels.ERROR)
-      end)
+      errors[#errors + 1] = "on_highlights failed\n" .. err
     end
   end
+  -- one bad group (e.g. an invalid color from on_highlights) must not abort the whole theme
   for name, spec in pairs(groups) do
-    vim.api.nvim_set_hl(0, name, spec)
+    local ok, err = pcall(vim.api.nvim_set_hl, 0, name, spec)
+    if not ok then
+      errors[#errors + 1] = ("highlight `%s`: %s"):format(name, err)
+    end
+  end
+  if #errors > 0 then
+    vim.schedule(function()
+      vim.notify("Lumen: " .. table.concat(errors, "\n"), vim.log.levels.ERROR)
+    end)
   end
 
   local term = {
@@ -87,15 +94,38 @@ function M.load(variant)
   end
 
   vim.g.colors_name = variant and ("lumen-" .. variant) or "lumen"
-  loading = false
 end
 
--- `lumen` follows 'background': toggling it swaps night/dawn live
+---@param variant? "night"|"dawn" nil follows 'background'
+function M.load(variant)
+  loading = true
+  -- always reset the guard: a stuck `loading` would silently disable the background toggle
+  local ok, err = pcall(load, variant)
+  loading = false
+  if not ok then
+    error(err, 0)
+  end
+end
+
+-- whether a Lumen variant is the active colorscheme
+local active = false
+
+local group = vim.api.nvim_create_augroup("lumen_colors", { clear = true })
+vim.api.nvim_create_autocmd("ColorScheme", {
+  group = group,
+  callback = function()
+    active = (vim.g.colors_name or ""):find("^lumen") ~= nil
+  end,
+})
+
+-- `lumen` follows 'background': toggling it swaps night/dawn live.
+-- Under `lumen-night`/`lumen-dawn` Neovim reloads the scheme on a 'background' change, sees it
+-- set 'background' back, and unloads it (colors_name = nil, default colors): switch to `lumen`.
 vim.api.nvim_create_autocmd("OptionSet", {
-  group = vim.api.nvim_create_augroup("lumen_colors", { clear = true }),
+  group = group,
   pattern = "background",
   callback = function()
-    if not loading and (vim.g.colors_name or ""):find("^lumen") then
+    if not loading and (active or (vim.g.colors_name or ""):find("^lumen")) then
       vim.schedule(function()
         vim.cmd.colorscheme("lumen")
       end)

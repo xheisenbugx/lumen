@@ -102,8 +102,8 @@ function M.apply()
   -- explicit `accent` wins; otherwise use the scheme's own signature color
   local config = require("lumen.config")
   local accent = config.accent
-  if accent and accent ~= require("lumen.config").defaults.accent then
-    p.accent = p[accent] or (accent:match("^#%x%x%x%x%x%x$") and accent) or p.native_accent
+  if type(accent) == "string" and accent ~= config.defaults.accent then
+    p.accent = p[accent] or (accent:match("^#%x%x%x%x%x%x$") and accent) or p.native_accent or p.amber
   else
     p.accent = p.native_accent or p.amber
   end

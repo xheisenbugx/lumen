@@ -62,6 +62,43 @@ local function run()
     vim.cmd.colorscheme("lumen")
   end)
 
+  check("a bad on_highlights group doesn't break the theme or the background toggle", function()
+    local config = require("lumen.config")
+    config.on_highlights = function(hl)
+      hl.LumenBad = { fg = "not-a-color" }
+    end
+    local ok, err = pcall(vim.cmd.colorscheme, "lumen")
+    config.on_highlights = nil
+    assert(ok, "colorscheme failed: " .. tostring(err))
+    assert(vim.g.colors_name == "lumen", "colors_name = " .. tostring(vim.g.colors_name))
+    vim.o.background = "light"
+    assert(
+      wait(1000 * SLOW, function()
+        return vim.api.nvim_get_hl(0, { name = "Normal" }).bg == tonumber("f7f3eb", 16)
+      end),
+      "background toggle stuck after a failed load"
+    )
+    vim.o.background = "dark"
+    vim.cmd.colorscheme("lumen")
+  end)
+
+  check("background toggle under lumen-dawn / lumen-night switches variant", function()
+    -- Neovim unloads a scheme that sets 'background' back (colors_name = nil, default colors)
+    for _, case in ipairs({ { "lumen-dawn", "dark", "10131a" }, { "lumen-night", "light", "f7f3eb" } }) do
+      vim.cmd.colorscheme(case[1])
+      vim.o.background = case[2]
+      assert(
+        wait(1000 * SLOW, function()
+          return vim.g.colors_name == "lumen"
+            and vim.api.nvim_get_hl(0, { name = "Normal" }).bg == tonumber(case[3], 16)
+        end),
+        ("%s + background=%s: colors_name=%s"):format(case[1], case[2], tostring(vim.g.colors_name))
+      )
+    end
+    vim.o.background = "dark"
+    vim.cmd.colorscheme("lumen")
+  end)
+
   check("catppuccin is selectable and Lumen UI adapts", function()
     local names = vim.tbl_map(function(i)
       return i.text
