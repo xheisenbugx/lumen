@@ -602,12 +602,15 @@ local function run()
           return #vim.lsp.get_clients({ bufnr = 0, name = "lua_ls" }) > 0
         end, 100)
         local gd = vim.fn.maparg("gd", "n", false, true)
+        local ft, errmsg = vim.bo.filetype, vim.v.errmsg
+        local why = pcall(vim.cmd, "Lumen why") and vim.bo.filetype == "markdown"
         io.stdout:write(vim.json.encode({
           lumen = vim.fn.exists(":Lumen") == 2,
           snacks = _G.Snacks ~= nil,
-          ft = vim.bo.filetype,
+          ft = ft,
           gd = gd.buffer == 1,
-          errmsg = vim.v.errmsg,
+          why = why,
+          errmsg = errmsg,
         }) .. "\n")
         vim.cmd("qa!")
       end, 300)
@@ -618,6 +621,7 @@ local function run()
     assert(res.snacks == false, "snacks still loaded: " .. vim.inspect(res) .. (out.stderr or ""))
     assert(res.lumen, ":Lumen missing, setup aborted: " .. vim.inspect(res) .. (out.stderr or ""))
     assert(res.ft == "lua" and res.gd, "no filetype / LSP keymaps: " .. vim.inspect(res))
+    assert(res.why, ":Lumen why failed: " .. vim.inspect(res))
     assert(res.errmsg == "", res.errmsg)
   end)
 

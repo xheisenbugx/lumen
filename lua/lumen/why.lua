@@ -255,6 +255,15 @@ end
 function M.show()
   local buf = vim.api.nvim_get_current_buf()
   local lines = M.report(buf)
+  if not _G.Snacks then
+    -- snacks.nvim disabled: a plain scratch split
+    vim.cmd("botright new")
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
+    vim.bo.buftype, vim.bo.bufhidden, vim.bo.modifiable = "nofile", "wipe", false
+    vim.bo.filetype = "markdown"
+    vim.keymap.set("n", "q", "<cmd>close<cr>", { buffer = true, silent = true })
+    return
+  end
   Snacks.win({
     text = lines,
     ft = "markdown",

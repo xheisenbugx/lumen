@@ -226,6 +226,20 @@ function M.pick()
     return table.concat(names, ",")
   end
   local before = snapshot()
+  if not _G.Snacks then
+    -- snacks.nvim disabled: toggle one pack per pick
+    return vim.ui.select(items, {
+      prompt = "Language packs (toggle)",
+      format_item = function(item)
+        return ("%s %-12s %s"):format(item.on and "●" or "○", item.name, item.desc)
+      end,
+    }, function(item)
+      if item then
+        M.set(item.name, not item.on)
+        M.prompt_restart(("%s pack `%s`"):format(item.on and "Disabled" or "Enabled", item.name))
+      end
+    end)
+  end
   Snacks.picker({
     title = "Language Packs · <cr> toggles",
     items = items,
