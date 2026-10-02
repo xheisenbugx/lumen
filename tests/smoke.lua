@@ -840,6 +840,15 @@ local function run()
     vim.cmd("bwipeout")
   end)
 
+  check("every Mason command lazy-loads mason", function()
+    -- regression: :MasonUninstall was "not an editor command" until mason happened to load
+    -- (mason is loaded by now, so check the spec rather than the commands)
+    local cmds = require("lazy.core.config").plugins["mason.nvim"].cmd or {}
+    for _, cmd in ipairs({ "Mason", "MasonInstall", "MasonUninstall", "MasonUninstallAll", "MasonUpdate", "MasonLog" }) do
+      assert(vim.tbl_contains(cmds, cmd), ":" .. cmd .. " does not load mason")
+    end
+  end)
+
   check("no startup errors", function()
     assert(vim.v.errmsg == "", vim.v.errmsg)
   end)

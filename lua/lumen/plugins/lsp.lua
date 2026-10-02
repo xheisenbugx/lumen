@@ -14,7 +14,7 @@ return {
 
   {
     "mason-org/mason.nvim",
-    cmd = { "Mason", "MasonInstall", "MasonUpdate", "MasonLog" },
+    cmd = { "Mason", "MasonInstall", "MasonUninstall", "MasonUninstallAll", "MasonUpdate", "MasonLog" },
     build = ":MasonUpdate",
     opts_extend = { "ensure_installed" },
     keys = { { "<leader>cm", "<cmd>Mason<cr>", desc = "Mason" } },
