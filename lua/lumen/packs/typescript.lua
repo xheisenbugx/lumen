@@ -70,6 +70,16 @@ return {
     typescriptreact = js_format,
   },
   plugins = {
-    { "windwp/nvim-ts-autotag", event = "LazyFile", opts = {} },
+    {
+      "windwp/nvim-ts-autotag",
+      event = "LazyFile",
+      opts = {
+        -- plain .ts has no JSX, yet autotag would reparse the whole buffer (with injections) on
+        -- every InsertLeave and on every `>` typed: ~30ms each on a 40k-line file
+        per_filetype = {
+          typescript = { enable_close = false, enable_rename = false, enable_close_on_slash = false },
+        },
+      },
+    },
   },
 }
