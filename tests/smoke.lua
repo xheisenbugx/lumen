@@ -397,6 +397,67 @@ local function run()
     assert(#bad == 0, "below contrast floor: " .. table.concat(bad, ", "))
   end)
 
+  check("treesitter: Lumen's background parser installs don't echo per-parser lines", function()
+    local Logger = require("nvim-treesitter.log").Logger
+    assert(Logger.lumen_info, "nvim-treesitter's logger is not hooked")
+    -- nvim-treesitter echoes with history, so count its lines in :messages
+    local function echoed()
+      local _, n = vim.api.nvim_exec2("messages", { output = true }).output:gsub("install/lumentest", "")
+      return n
+    end
+    local logger = require("nvim-treesitter.log").new("install/lumentest")
+    Logger.lumen_quiet = Logger.lumen_quiet + 1
+    pcall(logger.info, logger, "Compiling parser")
+    Logger.lumen_quiet = Logger.lumen_quiet - 1
+    assert(echoed() == 0, "echoed while a Lumen install runs")
+    -- outside Lumen's installs (a user's :TSInstall) it passes through to the original
+    local orig, passed = Logger.lumen_info, false
+    Logger.lumen_info = function()
+      passed = true
+    end
+    pcall(logger.info, logger, "Compiling parser")
+    Logger.lumen_info = orig
+    assert(passed, "user-run installs must stay verbose")
+  end)
+
+  check("why: no false alarm for a filetype without a treesitter parser", function()
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[buf].filetype = "org"
+    local text = table.concat(require("lumen.why").report(buf), "\n")
+    vim.api.nvim_buf_delete(buf, { force = true })
+    assert(text:find("no treesitter parser exists for `org`", 1, true), text)
+    assert(not text:find("✗ no `org` parser", 1, true), text)
+  end)
+
+  check("install.sh rejects unsafe arguments before touching anything", function()
+    local tmp = vim.fn.tempname()
+    vim.fn.mkdir(tmp, "p")
+    local env = { XDG_CONFIG_HOME = tmp, XDG_DATA_HOME = tmp, XDG_STATE_HOME = tmp, XDG_CACHE_HOME = tmp }
+    for _, args in ipairs({ { "--appname", "" }, { "--appname" }, { "--appname", "../x" }, { "--repo", "x" }, { "-z" } }) do
+      local out = vim.system(vim.list_extend({ "bash", "install.sh" }, args), { env = env, text = true }):wait(10000)
+      assert(out.code == 1, ("install.sh %s exited %s"):format(table.concat(args, " "), out.code))
+      assert(out.stderr:find("error:", 1, true), out.stderr)
+    end
+    assert(#vim.fn.readdir(tmp) == 0, "install.sh wrote to " .. tmp)
+    local help = vim
+      .system({ "bash", "-s", "--", "--help" }, { stdin = table.concat(vim.fn.readfile("install.sh"), "\n") })
+      :wait(10000)
+    assert(help.code == 0 and help.stdout:find("usage:", 1, true), "--help when piped: " .. tostring(help.stdout))
+    vim.fn.delete(tmp, "rf")
+  end)
+
+  check(":Lumen menu lists every subcommand", function()
+    local items
+    local select = vim.ui.select
+    vim.ui.select = function(list)
+      items = list
+    end
+    pcall(vim.cmd, "Lumen")
+    vim.ui.select = select
+    assert(items and #items >= 10, "menu items: " .. vim.inspect(items))
+    assert(items[1].name == "packs", "packs should come first")
+  end)
+
   check(":Lumen command + health", function()
     assert(vim.fn.exists(":Lumen") == 2)
     vim.cmd("checkhealth lumen")
