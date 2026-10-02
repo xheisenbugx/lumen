@@ -88,7 +88,8 @@ autocmd("FileType", {
     vim.bo[ev.buf].buflisted = false
     vim.schedule(function()
       vim.keymap.set("n", "q", function()
-        vim.cmd.close()
+        -- the last window can't be closed (e.g. `nvim +help`): deleting the buffer still works
+        pcall(vim.cmd.close)
         pcall(vim.api.nvim_buf_delete, ev.buf, { force = true })
       end, { buffer = ev.buf, silent = true, desc = "Quit buffer" })
     end)

@@ -662,6 +662,20 @@ local function run()
     end
   end)
 
+  check("`q` closes a help window even when it is the last one", function()
+    local probe = [[
+      vim.defer_fn(function()
+        vim.cmd("help | only")
+        vim.wait(200)
+        local ok, err = pcall(vim.api.nvim_feedkeys, "q", "x", false)
+        io.stdout:write(vim.json.encode({ ok = ok, err = tostring(err or ""), ft = vim.bo.filetype }) .. "\n")
+        vim.cmd("qa!")
+      end, 300)
+    ]]
+    local res, out = child(probe)
+    assert(res.ok and res.ft ~= "help", "q failed: " .. vim.inspect(res) .. (out.stderr or ""))
+  end)
+
   check("every pack reference resolves (parsers, servers, mason, formatters, linters)", function()
     require("lazy").load({ plugins = { "nvim-lspconfig", "conform.nvim", "nvim-lint", "mason-lspconfig.nvim" } })
     local parsers = require("nvim-treesitter.parsers")
