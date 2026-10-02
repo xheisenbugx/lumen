@@ -101,7 +101,8 @@ return {
   {
     "folke/todo-comments.nvim",
     cmd = { "TodoTrouble" },
-    event = "LazyFile",
+    -- after the first file is drawn: setup() highlights every visible window
+    event = "User LumenFileIdle",
     opts = { signs = false },
     -- stylua: ignore
     keys = {
@@ -149,7 +150,8 @@ return {
   -- sessions
   {
     "folke/persistence.nvim",
-    event = "BufReadPre",
+    -- only needs to be running before you quit: keep it out of the file-open path
+    event = "User LumenFileIdle",
     opts = {},
     -- stylua: ignore
     keys = {
