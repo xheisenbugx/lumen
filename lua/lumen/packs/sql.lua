@@ -1,33 +1,29 @@
 ---@type lumen.Pack
 return {
-  desc = "SQL + database UI (dadbod)",
+  desc = "SQL + database client (sqmeow: schema browser, queries, editable results)",
   ft = { "sql", "mysql", "plsql" },
   parsers = { "sql" },
   plugins = {
     {
-      "kristijanhusak/vim-dadbod-ui",
-      cmd = { "DBUI", "DBUIToggle", "DBUIAddConnection", "DBUIFindBuffer" },
-      dependencies = { { "tpope/vim-dadbod", cmd = "DB" } },
-      keys = { { "<leader>D", "<cmd>DBUIToggle<cr>", desc = "Database UI" } },
-      init = function()
-        vim.g.db_ui_use_nerd_fonts = 1
-        vim.g.db_ui_show_database_icon = true
-        vim.g.db_ui_auto_execute_table_helpers = 1
-        vim.g.db_ui_save_location = vim.fn.stdpath("data") .. "/dadbod_ui"
+      "2giosangmitom/sqmeow.nvim",
+      dependencies = { "MunifTanjim/nui.nvim" },
+      version = "*",
+      -- downloads the engine binary matching the release
+      build = function()
+        require("sqmeow").install()
       end,
-    },
-    { "kristijanhusak/vim-dadbod-completion", ft = { "sql", "mysql", "plsql" } },
-    {
-      "saghen/blink.cmp",
-      opts = {
-        sources = {
-          per_filetype = {
-            sql = { "snippets", "dadbod", "buffer" },
-            mysql = { "snippets", "dadbod", "buffer" },
-          },
-          providers = { dadbod = { name = "Dadbod", module = "vim_dadbod_completion.blink" } },
-        },
+      cmd = "Sqmeow",
+      opts = {},
+      keys = {
+        { "<leader>Dd", "<cmd>Sqmeow toggle<cr>", desc = "Toggle drawer" },
+        { "<leader>Do", "<cmd>Sqmeow<cr>", desc = "Open drawer + results" },
+        { "<leader>Da", "<cmd>Sqmeow add<cr>", desc = "Add connection" },
+        { "<leader>Du", "<cmd>Sqmeow use<cr>", desc = "Use connection" },
+        { "<leader>Ds", "<cmd>Sqmeow scratch<cr>", desc = "New scratchpad" },
+        { "<leader>Dc", "<cmd>Sqmeow cancel<cr>", desc = "Cancel query" },
+        { "<leader>Dl", "<cmd>Sqmeow log<cr>", desc = "Query history" },
       },
     },
+    { "folke/which-key.nvim", opts = { spec = { { "<leader>D", group = "database", icon = "󰆼 " } } } },
   },
 }
