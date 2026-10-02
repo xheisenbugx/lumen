@@ -3,8 +3,22 @@ local M = {}
 
 M.root = require("lumen.util.root")
 
+--- whether `require(mod)` could find something. A failed require walks package.path,
+--- package.cpath and then every runtimepath dir (~0.2ms per miss, and Lumen probes up to
+--- seven optional user modules at startup); vim.loader.find() answers from its rtp index.
+---@param mod string
+function M.module_exists(mod)
+  if package.loaded[mod] ~= nil or package.preload[mod] or not (vim.loader and vim.loader.find) then
+    return true
+  end
+  return #vim.loader.find(mod) > 0
+end
+
 ---@param mod string
 function M.try_require(mod)
+  if not M.module_exists(mod) then
+    return
+  end
   local ok, res = pcall(require, mod)
   if ok then
     return res

@@ -66,6 +66,9 @@ end
 
 ---@param mod string
 local function user_module(mod)
+  if not require("lumen.util").module_exists(mod) then
+    return {}
+  end
   local ok, res = pcall(require, mod)
   if ok then
     return type(res) == "table" and res or {}
