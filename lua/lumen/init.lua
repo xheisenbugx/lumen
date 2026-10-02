@@ -75,7 +75,48 @@ function M.setup(opts)
     for _, mod in ipairs({ "config.autocmds", "config.keymaps", "user.autocmds", "user.keymaps" }) do
       Lumen.try_require(mod)
     end
+
+    Lumen.on_very_lazy(M.welcome)
   end)
+
+  -- `:restart` (e.g. after enabling a pack) restores the session into the current window. If
+  -- lazy.nvim just installed the pack's plugins, that is its (finished) install float, and the
+  -- restored file would end up inside it. Plugins are installed by then, so close it.
+  if (vim.v.startreason or ""):find("^restart") then
+    vim.api.nvim_create_autocmd("VimEnter", {
+      once = true,
+      callback = function()
+        local view = package.loaded["lazy.view"]
+        if view and view.visible() then
+          view.view:close()
+        end
+      end,
+    })
+  end
+end
+
+--- one-time hint on the very first launch with a UI
+function M.welcome()
+  local flag = vim.fn.stdpath("state") .. "/lumen/welcomed"
+  if #vim.api.nvim_list_uis() == 0 or vim.uv.fs_stat(flag) then
+    return
+  end
+  vim.fn.mkdir(vim.fs.dirname(flag), "p")
+  local f = io.open(flag, "w")
+  if f then
+    f:close()
+  end
+  local leader = vim.g.mapleader == " " and "<space>" or (vim.g.mapleader or "\\")
+  Lumen.notify(
+    table.concat({
+      "Welcome to Lumen! Parsers and language servers install in the background.",
+      ("• press %s and wait to see every keymap · :Lumen (%sL) opens the menu"):format(leader, leader),
+      ("• settings: lua/config/lumen.lua (%sfc) · languages: :Lumen packs"):format(leader),
+      "• missing tools? run :checkhealth lumen",
+    }, "\n"),
+    nil,
+    { timeout = 15000 }
+  )
 end
 
 ---@param fn fun()
