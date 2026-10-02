@@ -18,13 +18,17 @@ function M.check()
     { "rg", true, "grep / live grep" },
     { "fd", false, "fast file finding (falls back to rg)" },
     { "tree-sitter", true, "building treesitter parsers" },
-    { "cc", false, "compiling parsers (or gcc/clang)" },
+    { { "cc", "gcc", "clang" }, true, "compiling treesitter parsers (a C compiler)" },
     { "lazygit", false, "<leader>gg" },
     { "node", false, "many LSP servers installed by Mason" },
   }
   for _, t in ipairs(tools) do
-    local name, required, why = t[1], t[2], t[3]
-    if vim.fn.executable(name) == 1 then
+    local names, required, why = type(t[1]) == "table" and t[1] or { t[1] }, t[2], t[3]
+    local found = vim.iter(names):find(function(n)
+      return vim.fn.executable(n) == 1
+    end)
+    local name = found or table.concat(names, "` / `")
+    if found then
       h.ok(("`%s` found"):format(name))
     elseif required then
       h.error(("`%s` not found — needed for %s"):format(name, why))
