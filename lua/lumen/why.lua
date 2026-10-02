@@ -18,6 +18,27 @@ local function pack_for(ft)
   end
 end
 
+--- Mason package for a conform formatter / nvim-lint linter name: names often differ
+--- (`ruff_format` → ruff, `biome-check` → biome), and some tools aren't in Mason at all
+---@param name string
+---@return string?
+function M.mason_pkg(name)
+  local ok, registry = pcall(require, "mason-registry")
+  if not ok then
+    return
+  end
+  for _, pkg in ipairs({ name, name:match("^(.-)[_-]") }) do
+    if registry.has_package(pkg) then
+      return pkg
+    end
+  end
+end
+
+local function mason_fix(name)
+  local pkg = M.mason_pkg(name)
+  return pkg and (":MasonInstall " .. pkg) or nil
+end
+
 local function exe(cmd)
   if type(cmd) == "table" and type(cmd[1]) == "string" then
     return cmd[1], vim.fn.executable(cmd[1]) == 1
@@ -174,7 +195,7 @@ function M.report(buf)
         if info.available then
           item(OK, ("`%s` available"):format(fname))
         else
-          item(NO, ("`%s` unavailable — %s"):format(fname, info.available_msg or "?"), ":MasonInstall " .. fname)
+          item(NO, ("`%s` unavailable — %s"):format(fname, info.available_msg or "?"), mason_fix(fname))
         end
       end
     end
@@ -210,7 +231,7 @@ function M.report(buf)
     if cmd and vim.fn.executable(cmd) == 1 then
       item(OK, ("`%s` runs on save / read / insert-leave"):format(l))
     else
-      item(NO, ("`%s` not installed"):format(l), ":MasonInstall " .. l)
+      item(NO, ("`%s` not installed"):format(l), mason_fix(l))
     end
   end
   local counts = vim.diagnostic.count(buf)
