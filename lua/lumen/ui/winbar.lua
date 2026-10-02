@@ -298,14 +298,6 @@ function M.setup()
       refresh(ev.buf)
     end,
   })
-  vim.api.nvim_create_autocmd("CursorMoved", {
-    group = group,
-    callback = function()
-      if vim.wo.winbar == EXPR then
-        vim.cmd.redrawstatus()
-      end
-    end,
-  })
   vim.api.nvim_create_autocmd({ "BufWipeout", "WinClosed" }, {
     group = group,
     callback = function(ev)
