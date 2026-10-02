@@ -5,3 +5,4 @@ lazy-lock.json
 .DS_Store
 # agent worktrees
 .claude/
+.tests-lock/
