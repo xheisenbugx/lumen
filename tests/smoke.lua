@@ -1029,6 +1029,64 @@ local function run()
     assert(items[1].name == "packs", "packs should come first")
   end)
 
+  check("tasks: deno.jsonc with comments and trailing commas", function()
+    local tasks = require("lumen.tasks")
+    local text = '{\n  // tasks\n  "tasks": { "dev": "deno run -A main.ts", /* serve */ "url": "http://x//y", },\n}\n'
+    local data = vim.json.decode(tasks.strip_jsonc(text))
+    assert(data.tasks.dev == "deno run -A main.ts", vim.inspect(data))
+    assert(data.tasks.url == "http://x//y", "a // inside a string was treated as a comment")
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    vim.fn.writefile(vim.split(text, "\n"), dir .. "/deno.jsonc")
+    vim.cmd.edit(dir .. "/main.ts")
+    local found = vim.tbl_filter(function(t)
+      return t.cmd == "deno task dev"
+    end, tasks.discover())
+    vim.cmd("bwipeout!")
+    assert(#found == 1, "deno.jsonc task not discovered")
+  end)
+
+  check("tasks: picker and terminal work with snacks.nvim disabled", function()
+    local probe = [[
+      vim.defer_fn(function()
+        local tasks = require("lumen.tasks")
+        local listed
+        vim.ui.select = function(items, _, cb) listed = #items cb(items[1]) end
+        tasks.discover = function()
+          return { { name = "hello", cmd = "echo hello-from-task", cwd = vim.uv.cwd(), source = "test" } }
+        end
+        local ok, err = pcall(tasks.pick)
+        vim.wait(3000, function() return vim.bo.buftype == "terminal" end, 50)
+        io.stdout:write(vim.json.encode({ ok = ok, err = tostring(err), listed = listed, term = vim.bo.buftype == "terminal",
+          snacks = _G.Snacks ~= nil }) .. "\n")
+        vim.cmd("qa!")
+      end, 500)
+    ]]
+    local res, out =
+      child(probe, { ["lua/plugins/zz_no_snacks.lua"] = 'return { { "folke/snacks.nvim", enabled = false } }' })
+    assert(res.snacks == false, "snacks still loaded: " .. vim.inspect(res) .. (out.stderr or ""))
+    assert(res.ok, "tasks.pick failed without snacks: " .. tostring(res.err))
+    assert(res.listed == 1 and res.term, "no task list / terminal: " .. vim.inspect(res))
+  end)
+
+  check("]C / [C stay Neovim's multicursor keys on 0.13+", function()
+    require("lazy").load({ plugins = { "nvim-treesitter-textobjects" } })
+    local next_class = vim.fn.maparg("]c", "n", false, true)
+    assert(next_class.desc == "Next class start", "]c should still jump to classes: " .. vim.inspect(next_class.desc))
+    local mapped = vim.fn.maparg("]C", "n", false, true).desc
+    if vim.api.nvim_mcursor then
+      assert(mapped ~= "Next class end", "]C overrides Neovim's next-cursor key")
+    else
+      assert(mapped == "Next class end", "]C should jump to class ends before 0.13")
+    end
+  end)
+
+  check("sql pack: sqmeow runs the buffer with <leader>Dx, not <leader>E", function()
+    local spec = require("lumen.packs.sql").plugins[1]
+    assert(spec[1] == "2giosangmitom/sqmeow.nvim", "unexpected first plugin: " .. tostring(spec[1]))
+    assert(spec.opts.keymaps.editor.execute_buffer == "<leader>Dx", vim.inspect(spec.opts))
+  end)
+
   check(":Lumen command + health", function()
     assert(vim.fn.exists(":Lumen") == 2)
     vim.cmd("checkhealth lumen")
