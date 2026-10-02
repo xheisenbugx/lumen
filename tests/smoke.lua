@@ -18,6 +18,31 @@ local function wait(ms, cond)
   return vim.wait(ms, cond, 50)
 end
 
+--- Starts an in-process fake language server `name` with `capabilities` for `buf`
+---@return integer client_id
+local function fake_server(name, capabilities, buf)
+  return assert(vim.lsp.start({
+    name = name,
+    cmd = function()
+      return {
+        request = function(method, _, callback)
+          if method == "initialize" then
+            callback(nil, { capabilities = capabilities })
+          end
+          return true, 1
+        end,
+        notify = function()
+          return true
+        end,
+        is_closing = function()
+          return false
+        end,
+        terminate = function() end,
+      }
+    end,
+  }, { bufnr = buf }))
+end
+
 --- Runs `probe` (Lua source; it must print one JSON object and quit) in a child Neovim using a
 --- throwaway copy of the sandbox config with `files` added (e.g. `lua/plugins/x.lua`), so the
 --- running suite never sees those specs. Returns the decoded JSON plus the raw result.
@@ -700,6 +725,25 @@ local function run()
     assert(res.ok and res.ft ~= "help", "q failed: " .. vim.inspect(res) .. (out.stderr or ""))
   end)
 
+  check("LSP keymaps only for capabilities the client has", function()
+    -- regression: K was mapped to LSP hover for any client, even one without hover (copilot),
+    -- hiding 'keywordprg' behind a "method not supported" error
+    vim.cmd("enew")
+    local buf = vim.api.nvim_get_current_buf()
+    local id = fake_server("lumen_fake", {}, buf)
+    assert(
+      wait(3000, function()
+        return #vim.lsp.get_clients({ bufnr = buf, name = "lumen_fake" }) > 0
+      end),
+      "fake server did not attach"
+    )
+    vim.wait(100)
+    local k = vim.fn.maparg("K", "n", false, true)
+    vim.lsp.get_client_by_id(id):stop(true)
+    vim.cmd("bwipeout!")
+    assert(k.buffer ~= 1, "K mapped for a client without hover")
+  end)
+
   check("ai pack turns on Copilot inline suggestions", function()
     -- regression: copilot attached but Neovim's inline completion stayed off, so no suggestions
     if not vim.lsp.inline_completion then
@@ -708,27 +752,7 @@ local function run()
     require("lumen.packs.ai").setup()
     vim.cmd("enew")
     local buf = vim.api.nvim_get_current_buf()
-    -- a fake in-process "copilot" server that offers inline completions
-    local id = vim.lsp.start({
-      name = "copilot",
-      cmd = function()
-        return {
-          request = function(method, _, callback)
-            if method == "initialize" then
-              callback(nil, { capabilities = { inlineCompletionProvider = true } })
-            end
-            return true, 1
-          end,
-          notify = function()
-            return true
-          end,
-          is_closing = function()
-            return false
-          end,
-          terminate = function() end,
-        }
-      end,
-    }, { bufnr = buf })
+    local id = fake_server("copilot", { inlineCompletionProvider = true }, buf)
     assert(
       wait(3000, function()
         return vim.lsp.inline_completion.is_enabled({ bufnr = buf })
