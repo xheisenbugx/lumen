@@ -145,8 +145,29 @@ function M._install(pkgs, on_done)
   end)
 end
 
+--- Put Mason's bin dir on PATH (what mason.setup() does), so servers it installed can start
+--- without loading mason.nvim while a file is being opened. Returns true once it is on PATH.
+---@param mopts? table mason.nvim opts (resolved from its spec when omitted)
+function M.mason_path(mopts)
+  if not mopts then
+    local plugin = require("lazy.core.config").plugins["mason.nvim"]
+    mopts = plugin and require("lazy.core.plugin").values(plugin, "opts", false) or {}
+  end
+  if mopts.PATH == "skip" then
+    return false
+  end
+  local sep = vim.fn.has("win32") == 1 and ";" or ":"
+  local bin = (mopts.install_root_dir or (vim.fn.stdpath("data") .. "/mason")) .. "/bin"
+  local path = vim.env.PATH or ""
+  if not (sep .. path .. sep):find(sep .. bin .. sep, 1, true) then
+    vim.env.PATH = mopts.PATH == "append" and (path .. sep .. bin) or (bin .. sep .. path)
+  end
+  return true
+end
+
 function M.setup(opts)
   require("lumen.diagnostics").setup()
+  M.mason_path()
 
   vim.api.nvim_create_autocmd("LspAttach", {
     group = vim.api.nvim_create_augroup("lumen_lsp_attach", { clear = true }),
@@ -189,6 +210,8 @@ function M.setup(opts)
 
   -- resolve missing servers → mason packages after startup
   vim.defer_fn(function()
+    -- load mason now (its config installs missing tools)
+    pcall(require, "mason")
     local to_install, pkg_to_server = {}, {}
     for _, name in ipairs(mason_servers) do
       local cmd = (vim.lsp.config[name] or {}).cmd

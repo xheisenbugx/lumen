@@ -2,7 +2,8 @@ return {
   {
     "neovim/nvim-lspconfig",
     event = "LazyFile",
-    dependencies = { "mason-org/mason.nvim", "mason-org/mason-lspconfig.nvim" },
+    -- mason isn't needed to start servers (lumen.lsp puts its bin dir on PATH): it loads right
+    -- after, off the file-open path, to install missing servers and tools
     opts = {
       ---@type table<string, table|false>
       servers = {},
@@ -31,6 +32,10 @@ return {
     config = function(_, opts)
       local tools = opts.ensure_installed or {}
       opts.ensure_installed = nil
+      -- already on PATH: don't let mason prepend its bin dir a second time
+      if require("lumen.lsp").mason_path(opts) then
+        opts.PATH = "skip"
+      end
       require("mason").setup(opts)
       require("lumen.lsp").install(tools)
     end,
