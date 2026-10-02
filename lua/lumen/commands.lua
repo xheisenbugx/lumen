@@ -39,6 +39,21 @@ local actions = {
       require("lumen.update").pick_rollback()
     end,
   },
+  doctor = {
+    desc = "Deep report: binaries, Mason, root trace, LSP log · `doctor json` copies it for bug reports",
+    run = function(args)
+      if args[1] == "json" then
+        local json = require("lumen.why").json(0)
+        local path = vim.fn.stdpath("state") .. "/lumen/doctor.json"
+        vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
+        vim.fn.writefile({ json }, path)
+        pcall(vim.fn.setreg, "+", json)
+        vim.fn.setreg('"', json)
+        return Lumen.notify("Doctor report copied to the clipboard and saved to " .. vim.fn.fnamemodify(path, ":~"))
+      end
+      require("lumen.why").show({ deep = true })
+    end,
+  },
   why = {
     desc = "Explain LSP / format / lint / parser setup for this buffer",
     run = function()
@@ -78,7 +93,8 @@ local actions = {
 }
 
 -- menu order: everyday things first, maintenance last
-local names = { "packs", "why", "tasks", "keys", "config", "theme", "health", "update", "rollback", "profile" }
+local names =
+  { "packs", "why", "doctor", "tasks", "keys", "config", "theme", "health", "update", "rollback", "profile" }
 local rest = vim.tbl_filter(function(n)
   return not vim.tbl_contains(names, n)
 end, vim.tbl_keys(actions))
@@ -119,6 +135,8 @@ end, {
     local parts = vim.split(line, "%s+", { trimempty = false })
     if #parts == 2 then
       return names
+    elseif #parts == 3 and parts[2] == "doctor" then
+      return { "json" }
     elseif #parts == 3 and parts[2] == "packs" then
       return { "enable", "disable" }
     elseif #parts == 4 and parts[2] == "packs" then

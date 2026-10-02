@@ -52,9 +52,11 @@ tabline, breadcrumbs, scrollbar and folds. The palette is checked against WCAG c
 
 **It explains itself.** `:Lumen why` tells you which pack, parser, servers, formatters and linters
 apply to the current buffer, and gives you the command that fixes each problem it finds.
+`:Lumen doctor` goes deeper, and `<CR>` on a problem runs its fix.
 
-**It's safe to update.** `:Lumen update` snapshots your plugin versions, updates, checks that
-everything still loads in a separate Neovim, and offers to roll back if it doesn't.
+**It's safe to update.** On the stable channel, `:Lumen update` only moves to plugin versions that
+CI tested together with Lumen. It snapshots your versions first, checks that everything still
+loads in a separate Neovim, and offers to roll back if it doesn't.
 
 **Your config stays yours.** Everything you change lives in your config dir, never inside Lumen,
 so updates can't conflict with your edits.
@@ -130,7 +132,13 @@ pack. Toggle packs in an interactive picker with `:Lumen packs`. See [Language p
 
 `<leader>cw` opens a report for the current buffer: which pack, parser, language servers
 (attached or not, and why), formatters, linters and project root apply. Every problem comes with
-the command that fixes it.
+the command that fixes it, and pressing `<CR>` on it runs that command.
+
+`:Lumen doctor` (`<leader>cD`) is the deep version, for when a language server won't cooperate.
+For each server it shows the binary it resolved, the Mason package and whether it is installed,
+which root markers were searched and what matched, what the server supports, and its latest
+errors from `lsp.log`. `:Lumen doctor json` copies the whole report as JSON, ready to paste into a
+bug report or hand to an AI assistant.
 
 ### Task runner
 
@@ -147,7 +155,14 @@ Add your own with `tasks = {}` in `lua/config/lumen.lua`.
 
 `:Lumen update` snapshots `lazy-lock.json`, updates plugins and parsers, then verifies that
 everything still loads in a separate, clean Neovim. If something broke, it offers to roll back.
-`:Lumen rollback` restores any of the last 15 snapshots. Plain `:Lazy update` works too.
+`:Lumen rollback` restores any of the last 15 snapshots.
+
+**Update channels.** With the default `update_channel = "stable"`, plugins Lumen ships move to
+the exact versions in `lumen-lock.json`. A nightly CI job publishes that file only after the newest
+version of every plugin, with all 46 packs enabled, has loaded cleanly and passed the test suite
+on both stable and nightly Neovim. Plugins you added yourself still update to latest. Set
+`update_channel = "latest"` to move everything to the newest versions instead. Plain
+`:Lazy update` always updates to latest.
 
 ### And the rest
 
@@ -285,6 +300,7 @@ return {
 | `suggest_packs` | `true` | offer a pack when you open a filetype it supports |
 | `auto_install_parsers` | `true` | install missing treesitter parsers on demand |
 | `format_on_save` | `true` | |
+| `update_channel` | `"stable"` | `"stable"`: CI-tested plugin versions · `"latest"`: newest of everything |
 | `inlay_hints` | `true` | |
 | `statusline` | `true` | Lumen's statusline |
 | `tabline` | `true` | Lumen's tabline |
@@ -413,7 +429,7 @@ LazyVim's, so your muscle memory carries over.
 | `<leader>ca` | code action | `<leader>cr` | rename symbol |
 | `<leader>cf` | format | `<leader>cR` | rename file (LSP-aware) |
 | `<leader>cc` | run codelens | `<leader>cl` | LSP info |
-| `<leader>cd` | line diagnostics | `<leader>cw` | why? (buffer setup report) |
+| `<leader>cd` | line diagnostics | `<leader>cw` / `cD` | why? / doctor (buffer setup report) |
 | `<leader>cs` / `cS` | symbols outline / LSP refs (Trouble) | `<leader>cm` | Mason |
 | `]d` `[d` | next / prev diagnostic | `]e` `[e` / `]w` `[w` | errors / warnings |
 | `<leader>xx` / `xX` | diagnostics / buffer diagnostics (Trouble) | `<leader>xQ` / `xL` | quickfix / location list (Trouble) |
@@ -479,9 +495,10 @@ Search everything live with `<leader>sk` or `:Lumen keys`.
 |---|---|
 | `:Lumen` | menu |
 | `:Lumen packs [enable\|disable <name>]` | manage language packs |
-| `:Lumen why` | explain this buffer's LSP / format / lint / parser setup |
+| `:Lumen why` | explain this buffer's LSP / format / lint / parser setup (`<CR>` runs a fix) |
+| `:Lumen doctor [json]` | deep report: binaries, Mason, root trace, capabilities, LSP log · `json` copies it |
 | `:Lumen tasks` | run a project task |
-| `:Lumen update` | snapshot → update → verify → offer rollback |
+| `:Lumen update` | snapshot → update (stable or latest channel) → verify → offer rollback |
 | `:Lumen rollback` | restore plugins from a snapshot |
 | `:Lumen theme` | toggle night / dawn |
 | `:Lumen config` | edit your config |

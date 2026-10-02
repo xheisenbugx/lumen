@@ -13,7 +13,10 @@ return {
         require("sqmeow").install()
       end,
       cmd = "Sqmeow",
-      opts = {},
+      opts = {
+        -- sqmeow runs the whole scratchpad with <leader>E, which would shadow Lumen's explorer
+        keymaps = { editor = { execute_buffer = "<leader>Dx" } },
+      },
       keys = {
         { "<leader>Dd", "<cmd>Sqmeow toggle<cr>", desc = "Toggle drawer" },
         { "<leader>Do", "<cmd>Sqmeow<cr>", desc = "Open drawer + results" },

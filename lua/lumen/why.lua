@@ -45,9 +45,11 @@ local function exe(cmd)
   end
 end
 
----@param buf integer
-function M.report(buf)
+---@param buf? integer
+---@param opts? {deep?: boolean} deep = :Lumen doctor (binaries, Mason, root trace, capabilities, log tail)
+function M.report(buf, opts)
   buf = (buf == nil or buf == 0) and vim.api.nvim_get_current_buf() or buf
+  local deep = opts and opts.deep
   local ft = vim.bo[buf].filetype
   local name = vim.api.nvim_buf_get_name(buf)
   local lines = {}
@@ -61,8 +63,17 @@ function M.report(buf)
     end
   end
 
-  add(("# Why — `%s`"):format(name ~= "" and vim.fn.fnamemodify(name, ":~:.") or "[No Name]"))
+  add(
+    ("# %s — `%s`"):format(deep and "Doctor" or "Why", name ~= "" and vim.fn.fnamemodify(name, ":~:.") or "[No Name]")
+  )
   add()
+  if deep then
+    add("## Environment")
+    for _, line in ipairs(M.environment()) do
+      item(INFO, line)
+    end
+    add()
+  end
   add(
     ("filetype **%s** · buftype **%s**"):format(
       ft ~= "" and ft or "none",
@@ -162,6 +173,11 @@ function M.report(buf)
             ),
             ":LspInfo"
           )
+        end
+      end
+      if deep then
+        for _, line in ipairs(M.server_details(sname, cfg, c, buf)) do
+          add("   · " .. line)
         end
       end
     end
@@ -279,9 +295,197 @@ function M.report(buf)
   return lines
 end
 
-function M.show()
+--- Neovim, Lumen, plugin manager and pack facts (doctor header and bug reports)
+---@return string[]
+function M.environment()
+  local v = vim.version()
+  local stats = package.loaded["lazy"] and require("lazy").stats() or { count = 0, loaded = 0 }
+  local packs = vim.tbl_keys(require("lumen.packs").enabled())
+  table.sort(packs)
+  return {
+    ("Neovim %d.%d.%d%s · Lumen %s · %s"):format(
+      v.major,
+      v.minor,
+      v.patch,
+      v.prerelease and ("-" .. tostring(v.prerelease)) or "",
+      require("lumen").version,
+      vim.uv.os_uname().sysname
+    ),
+    ("%d plugins (%d loaded) · update channel `%s`"):format(
+      stats.count,
+      stats.loaded,
+      require("lumen.config").update_channel or "stable"
+    ),
+    "packs: " .. (#packs > 0 and table.concat(packs, ", ") or "none"),
+  }
+end
+
+local CAPS = {
+  hover = "textDocument/hover",
+  definition = "textDocument/definition",
+  references = "textDocument/references",
+  rename = "textDocument/rename",
+  ["code actions"] = "textDocument/codeAction",
+  formatting = "textDocument/formatting",
+  ["inlay hints"] = "textDocument/inlayHint",
+  symbols = "textDocument/documentSymbol",
+  folding = "textDocument/foldingRange",
+  ["semantic tokens"] = "textDocument/semanticTokens/full",
+  ["inline completion"] = "textDocument/inlineCompletion",
+}
+
+--- last log lines that mention this server (errors and warnings only)
+---@param sname string
+---@param max integer
+function M.log_tail(sname, max)
+  local ok, path = pcall(vim.lsp.log.get_filename)
+  if not ok or not path or vim.fn.filereadable(path) == 0 then
+    return {}
+  end
+  local size = vim.fn.getfsize(path)
+  local f = io.open(path, "r")
+  if not f then
+    return {}
+  end
+  -- the log can be large: only read its last 256 KB
+  if size > 262144 then
+    f:seek("set", size - 262144)
+  end
+  local text = f:read("*a") or ""
+  f:close()
+  local hits = {}
+  for line in text:gmatch("[^\n]+") do
+    if line:find('"' .. sname .. '"', 1, true) and (line:find("^%[ERROR%]") or line:find("^%[WARN%]")) then
+      hits[#hits + 1] = line
+    end
+  end
+  return vim.list_slice(hits, math.max(1, #hits - max + 1), #hits)
+end
+
+--- deep facts about one server: binary, Mason, root trace, capabilities, log
+---@param sname string
+---@param cfg table resolved vim.lsp.config
+---@param client? vim.lsp.Client attached client, if any
+---@param buf integer
+---@return string[]
+function M.server_details(sname, cfg, client, buf)
+  local out = {}
+  if type(cfg.cmd) == "table" and type(cfg.cmd[1]) == "string" then
+    local path = vim.fn.exepath(cfg.cmd[1])
+    out[#out + 1] = ("command `%s` → %s"):format(
+      table.concat(cfg.cmd, " "):sub(1, 80),
+      path ~= "" and ("`" .. vim.fn.fnamemodify(path, ":~") .. "`") or "not found on $PATH"
+    )
+  else
+    out[#out + 1] = "command resolved at start by lspconfig (function `cmd`)"
+  end
+  local servers = package.loaded["lumen.lsp"] and require("lumen.lsp").servers or {}
+  local pkg = (servers[sname] or {}).mason and require("lumen.lsp").package_for(sname)
+  if pkg then
+    local reg_ok, registry = pcall(require, "mason-registry")
+    local state = reg_ok
+        and registry.has_package(pkg)
+        and (registry.is_installed(pkg) and "installed" or "not installed")
+      or "unknown"
+    out[#out + 1] = ("Mason package `%s`: %s"):format(pkg, state)
+  else
+    out[#out + 1] = "not managed by Mason (bring your own binary)"
+  end
+  local markers = cfg.root_markers and vim.iter(cfg.root_markers):flatten():totable()
+  if client then
+    out[#out + 1] = ("root `%s`"):format(
+      client.root_dir and vim.fn.fnamemodify(client.root_dir, ":~") or "none (single file)"
+    )
+    local caps = {}
+    for label, method in pairs(CAPS) do
+      if client:supports_method(method, buf) then
+        caps[#caps + 1] = label
+      end
+    end
+    table.sort(caps)
+    out[#out + 1] = "supports: " .. (#caps > 0 and table.concat(caps, ", ") or "nothing Lumen maps")
+  elseif markers then
+    local found = vim.fs.root(buf, markers)
+    out[#out + 1] = ("root markers %s → %s"):format(
+      table.concat(markers, ", "),
+      found and ("found `" .. vim.fn.fnamemodify(found, ":~") .. "`") or "none found above this file"
+    )
+  end
+  for _, line in ipairs(M.log_tail(sname, 3)) do
+    out[#out + 1] = "log: " .. line:gsub("%s+", " "):sub(1, 180)
+  end
+  return out
+end
+
+--- the doctor report as data, for bug reports and AI assistants
+---@param buf? integer
+function M.json(buf)
+  buf = (buf == nil or buf == 0) and vim.api.nvim_get_current_buf() or buf
+  local servers = {}
+  for _, c in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
+    servers[#servers + 1] = { name = c.name, root = c.root_dir, attached = true }
+  end
+  return vim.json.encode({
+    environment = M.environment(),
+    file = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(buf), ":~:."),
+    filetype = vim.bo[buf].filetype,
+    attached = servers,
+    report = M.report(buf, { deep = true }),
+  })
+end
+
+--- the command a report line points to: the `→` fix on this line or the next one
+---@param lines string[]
+---@param lnum integer 1-based
+---@return string?
+function M.fix_at(lines, lnum)
+  for i = lnum, math.min(lnum + 1, #lines) do
+    local cmd = (lines[i] or ""):match("^%s*→ `(.-)`%s*$")
+    if cmd then
+      return cmd
+    end
+    -- the line after a status line is its fix; stop at the next status line
+    if i > lnum and not lines[i]:match("^%s*→") then
+      break
+    end
+  end
+end
+
+---@param cmd string `:Ex command` or keys like `<leader>uT`
+local function run_fix(cmd, origin)
+  if origin and vim.api.nvim_win_is_valid(origin) then
+    vim.api.nvim_set_current_win(origin)
+  end
+  if cmd:sub(1, 1) == ":" then
+    local ok, err = pcall(vim.cmd, cmd:sub(2))
+    if not ok then
+      Lumen.error(("`%s` failed: %s"):format(cmd, err))
+    else
+      Lumen.notify(("ran `%s`"):format(cmd))
+    end
+  elseif cmd:find("^<") then
+    local keys = cmd:gsub("<leader>", vim.g.mapleader or "\\")
+    vim.api.nvim_feedkeys(vim.keycode(keys), "m", false)
+  else
+    Lumen.notify(cmd)
+  end
+end
+
+---@param opts? {deep?: boolean}
+function M.show(opts)
+  local deep = opts and opts.deep
+  local origin = vim.api.nvim_get_current_win()
   local buf = vim.api.nvim_get_current_buf()
-  local lines = M.report(buf)
+  local lines = M.report(buf, opts)
+  table.insert(lines, 2, "_`<CR>` on a line with a → fix runs it · `q` closes_")
+  local function on_enter()
+    local cmd = M.fix_at(lines, vim.api.nvim_win_get_cursor(0)[1])
+    if not cmd then
+      return Lumen.notify("no fix on this line")
+    end
+    vim.cmd.close()
+    run_fix(cmd, origin)
+  end
   if not _G.Snacks then
     -- snacks.nvim disabled: a plain scratch split
     vim.cmd("botright new")
@@ -289,21 +493,22 @@ function M.show()
     vim.bo.buftype, vim.bo.bufhidden, vim.bo.modifiable = "nofile", "wipe", false
     vim.bo.filetype = "markdown"
     vim.keymap.set("n", "q", "<cmd>close<cr>", { buffer = true, silent = true })
+    vim.keymap.set("n", "<cr>", on_enter, { buffer = true, silent = true })
     return
   end
   Snacks.win({
     text = lines,
     ft = "markdown",
-    width = 0.6,
+    width = deep and 0.75 or 0.6,
     height = math.min(#lines + 2, math.floor(vim.o.lines * 0.8)),
     border = "rounded",
-    title = " 󰛨 Lumen why ",
+    title = deep and " 󰛨 Lumen doctor " or " 󰛨 Lumen why ",
     title_pos = "center",
     backdrop = false,
-    wo = { wrap = true, linebreak = true, conceallevel = 2, spell = false, cursorline = false },
+    wo = { wrap = true, linebreak = true, conceallevel = 2, spell = false, cursorline = true },
     -- a real markdown filetype so render-markdown draws the report (snacks' `ft` only highlights)
     bo = { filetype = "markdown", modifiable = false },
-    keys = { q = "close", ["<esc>"] = "close" },
+    keys = { q = "close", ["<esc>"] = "close", ["<cr>"] = on_enter },
   })
 end
 

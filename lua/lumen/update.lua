@@ -28,6 +28,19 @@ local function write(path, s)
   f:close()
 end
 
+--- lazy.nvim caches lazy-lock.json in memory, and its load() is a no-op once it has run, so
+--- restore() would silently use the old commits. Write the file and set the cache to match.
+local function write_lock(content)
+  write(lockfile, content)
+  local ok, data = pcall(vim.json.decode, content)
+  if ok and type(data) == "table" then
+    pcall(function()
+      local Lock = require("lazy.manage.lock")
+      Lock.lock, Lock._loaded = data, true
+    end)
+  end
+end
+
 local function decode(s)
   local ok, data = pcall(vim.json.decode, s or "")
   return ok and type(data) == "table" and data or {}
@@ -142,64 +155,153 @@ function M.restore(path)
   if not s then
     return Lumen.error("snapshot not found: " .. path)
   end
-  write(lockfile, s)
+  write_lock(s)
   Lumen.notify("Restoring plugins from " .. vim.fn.fnamemodify(path, ":t") .. "…")
-  require("lazy").restore({ wait = false, show = true })
+  -- blocking, for the same reason as step(): see above
+  require("lazy.manage").restore({ wait = true, show = true })
+  vim.schedule(function()
+    require("lumen.packs").prompt_restart("Plugins rolled back")
+  end)
+end
+
+--- after plugins changed: parsers, Mason, then verify in a clean Neovim and offer rollback
+---@param before string? lockfile content before the update
+---@param snap string? snapshot path
+local function finish(before, snap)
+  pcall(vim.cmd, "TSUpdate")
+  pcall(vim.cmd, "MasonUpdate")
+  vim.defer_fn(function()
+    local after = read(lockfile)
+    local names = changed(before, after)
+    if #names == 0 then
+      return Lumen.notify("✓ Everything is up to date")
+    end
+    local count = #names == 1 and "1 plugin" or (#names .. " plugins")
+    Lumen.notify(("Verifying %s in a clean Neovim…"):format(count))
+    M.verify(function(ok, errors)
+      if ok then
+        Lumen.notify(("✓ Update verified — %s updated:\n%s"):format(count, table.concat(names, ", ")))
+        require("lumen.packs").prompt_restart("Update complete")
+        return
+      end
+      vim.notify(
+        "✗ Update broke something:\n" .. table.concat(errors, "\n"):sub(1, 1200),
+        vim.log.levels.ERROR,
+        { title = "Lumen update" }
+      )
+      if not snap then
+        return
+      end
+      vim.ui.select(
+        { "Roll back", "Keep the update" },
+        { prompt = "Lumen: roll back to the snapshot?" },
+        function(choice)
+          if choice == "Roll back" then
+            M.restore(snap)
+          end
+        end
+      )
+    end)
+  end, 500)
+end
+
+--- Apply the vetted versions to the user's lockfile.
+--- Plugins in both move to the vetted commit; plugins only the user has ("extras", e.g. their own
+--- plugins) are returned so they can update to latest; vetted plugins the user doesn't use are skipped.
+---@param current table<string, {branch:string, commit:string}> the user's lazy-lock.json
+---@param vetted table<string, {branch:string, commit:string}> Lumen's lumen-lock.json
+---@return table merged, string[] pinned, string[] extras
+function M.merge_lock(current, vetted)
+  local merged, pinned, extras = vim.deepcopy(current), {}, {}
+  for name, info in pairs(current) do
+    if name ~= "lumen" and vetted[name] and vetted[name].commit then
+      merged[name] = { branch = vetted[name].branch or info.branch, commit = vetted[name].commit }
+      pinned[#pinned + 1] = name
+    elseif name ~= "lumen" then
+      extras[#extras + 1] = name
+    end
+  end
+  table.sort(pinned)
+  table.sort(extras)
+  return merged, pinned, extras
+end
+
+--- the vetted lockfile shipped with the installed Lumen (nil until CI has published one)
+function M.vetted()
+  local plugin = require("lazy.core.config").plugins.lumen
+  local path = plugin and plugin.dir and (plugin.dir .. "/lumen-lock.json")
+  local data = path and decode(read(path))
+  return data and next(data) and data or nil
+end
+
+local function latest(before, snap)
   vim.api.nvim_create_autocmd("User", {
-    pattern = "LazyRestore",
+    pattern = "LazySync",
     once = true,
     callback = function()
-      require("lumen.packs").prompt_restart("Plugins rolled back")
+      finish(before, snap)
     end,
   })
+  require("lazy").sync({ wait = false, show = true })
+end
+
+--- run a lazy.nvim manage step to completion, then `next`. It must block (`wait = true`): with an
+--- async runner lazy may record the lockfile from the *current* commits before its checkout runs,
+--- undoing the versions we just asked for.
+---@param fn "update"|"restore"
+---@param opts table
+---@param next fun()
+local function step(fn, opts, next)
+  require("lazy.manage")[fn](vim.tbl_extend("force", opts, { wait = true }))
+  vim.schedule(next)
+end
+
+--- stable channel: Lumen first (it carries the vetted versions), then every plugin it vetted to
+--- exactly that commit, and plugins it doesn't know about to latest
+local function stable(before, snap)
+  local function apply()
+    local vetted = M.vetted()
+    if not vetted then
+      Lumen.warn('No vetted plugin versions yet — updating to latest (update_channel = "latest" behaviour)')
+      return latest(before, snap)
+    end
+    local merged, pinned, extras = M.merge_lock(decode(read(lockfile)), vetted)
+    write_lock(vim.json.encode(merged))
+    Lumen.notify(
+      ("Stable channel: %d plugins to their CI-tested versions, %d of your own to latest"):format(#pinned, #extras)
+    )
+    local function update_extras()
+      if #extras == 0 then
+        return finish(before, snap)
+      end
+      step("update", { plugins = extras, show = true }, function()
+        finish(before, snap)
+      end)
+    end
+    if #pinned == 0 then
+      return update_extras()
+    end
+    step("restore", { plugins = pinned, show = true }, update_extras)
+  end
+  local lumen = require("lazy.core.config").plugins.lumen
+  -- a local checkout (`dir =`, contributors) has nothing to fetch
+  if lumen and lumen.url then
+    step("update", { plugins = { "lumen" }, show = false }, apply)
+  else
+    apply()
+  end
 end
 
 function M.update()
   local before = read(lockfile)
   local snap = M.snapshot()
-  Lumen.notify("Snapshot saved — updating…")
-  vim.api.nvim_create_autocmd("User", {
-    pattern = "LazySync",
-    once = true,
-    callback = function()
-      pcall(vim.cmd, "TSUpdate")
-      pcall(vim.cmd, "MasonUpdate")
-      vim.defer_fn(function()
-        local after = read(lockfile)
-        local names = changed(before, after)
-        if #names == 0 then
-          return Lumen.notify("✓ Everything is up to date")
-        end
-        local count = #names == 1 and "1 plugin" or (#names .. " plugins")
-        Lumen.notify(("Verifying %s in a clean Neovim…"):format(count))
-        M.verify(function(ok, errors)
-          if ok then
-            Lumen.notify(("✓ Update verified — %s updated:\n%s"):format(count, table.concat(names, ", ")))
-            require("lumen.packs").prompt_restart("Update complete")
-            return
-          end
-          vim.notify(
-            "✗ Update broke something:\n" .. table.concat(errors, "\n"):sub(1, 1200),
-            vim.log.levels.ERROR,
-            { title = "Lumen update" }
-          )
-          if not snap then
-            return
-          end
-          vim.ui.select(
-            { "Roll back", "Keep the update" },
-            { prompt = "Lumen: roll back to the snapshot?" },
-            function(choice)
-              if choice == "Roll back" then
-                M.restore(snap)
-              end
-            end
-          )
-        end)
-      end, 500)
-    end,
-  })
-  require("lazy").sync({ wait = false, show = true })
+  local channel = require("lumen.config").update_channel or "stable"
+  Lumen.notify(("Snapshot saved — updating (%s channel)…"):format(channel))
+  if channel == "latest" then
+    latest(before, snap)
+  else
+    stable(before, snap)
+  end
 end
 
 function M.pick_rollback()

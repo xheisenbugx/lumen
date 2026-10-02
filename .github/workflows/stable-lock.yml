@@ -1,0 +1,86 @@
+name: stable-lock
+
+# Builds lumen-lock.json, the plugin versions behind `update_channel = "stable"`:
+# resolve the newest version of every plugin (all packs enabled), verify that exact set on
+# stable and nightly Neovim, and publish it only when every check passed.
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stable-lock
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+      - name: tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y ripgrep build-essential unzip
+          npm install -g tree-sitter-cli
+      - name: resolve the newest plugin versions
+        run: bash ./scripts/vetted-lock.sh resolve candidate-lock.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: candidate-lock
+          path: candidate-lock.json
+
+  verify:
+    needs: resolve
+    strategy:
+      fail-fast: true
+      matrix:
+        nvim: [stable, nightly]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.nvim }}
+      - name: tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y ripgrep build-essential unzip
+          npm install -g tree-sitter-cli
+      - uses: actions/download-artifact@v4
+        with:
+          name: candidate-lock
+      - name: verify the candidate versions
+        run: bash ./scripts/vetted-lock.sh verify candidate-lock.json
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: candidate-lock
+      - name: publish lumen-lock.json when it changed
+        run: |
+          python3 -c 'import json,sys; d=json.load(open("candidate-lock.json")); d.pop("lumen", None); json.dump(d, open("lumen-lock.json","w"), indent=2, sort_keys=True); open("lumen-lock.json","a").write("\n")'
+          if git diff --quiet -- lumen-lock.json 2>/dev/null && git ls-files --error-unmatch lumen-lock.json >/dev/null 2>&1; then
+            echo "vetted versions unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lumen-lock.json
+          git commit -m "chore(lock): publish CI-verified plugin versions for the stable channel"
+          git push

@@ -45,8 +45,8 @@ Module map (`lua/lumen/`):
 | `diagnostics.lua` | diagnostic display modes `text` / `lines` / `signs` and cycling between them |
 | `packs.lua` + `packs/*.lua` | language packs, their state file, suggestions and the picker |
 | `tasks.lua` | task discovery (npm, make, cargo, go…), terminal and background runs, quickfix |
-| `why.lua` | `:Lumen why`: explains what's active for the current buffer |
-| `update.lua` | `:Lumen update` (snapshot, sync, headless verify) and `:Lumen rollback` |
+| `why.lua` | `:Lumen why` / `:Lumen doctor` (deep: binaries, Mason, root trace, LSP log, JSON); `<CR>` runs a line's fix |
+| `update.lua` | `:Lumen update` (snapshot, stable/latest channel, headless verify) and `:Lumen rollback` |
 | `icons.lua` | shared icons |
 | `colors/palettes.lua` | night/dawn palettes |
 | `colors/theme.lua` | highlight group definitions |
@@ -113,6 +113,12 @@ package names in `tools`, conform formatter names and nvim-lint linter names. Th
 - Formatting: `stylua .` to format, `stylua --check .` to check (`stylua.toml`: 2 spaces, 120 columns).
   `.luarc.json` declares the globals `vim`, `Snacks`, `Lumen` and `MiniIcons`.
 - CI (`.github/workflows/ci.yml`) runs `stylua --check .` plus `./scripts/test.sh` on Neovim **stable and nightly**.
+- **Stable update channel**: `.github/workflows/stable-lock.yml` runs nightly (and on demand). It
+  resolves the newest version of every plugin with all packs enabled (`scripts/vetted-lock.sh resolve`),
+  verifies that exact set on stable and nightly Neovim (`scripts/vetted-lock.sh verify`: restore, load
+  every plugin, run the suite), and only then commits `lumen-lock.json`. `update.lua` applies it with
+  `merge_lock()`: vetted plugins are pinned, plugins only the user has update to latest. Don't hand-edit
+  `lumen-lock.json`; run the workflow.
 
 Rules:
 
@@ -169,6 +175,16 @@ Rules:
 - `:restart` restores the session into the **current window**. When it follows a pack change,
   lazy.nvim's install float is the current window during startup, so `init.lua` closes that float
   at VimEnter when `v:startreason` is `restart`.
+
+- **lazy.nvim's lockfile is cached, and its cache is sticky.** `require("lazy.manage.lock").load()`
+  is a no-op once it has run, so after writing `lazy-lock.json` yourself, set `Lock.lock` (and
+  `Lock._loaded = true`) to the same data, or `restore()` uses the old commits (`update.lua`'s
+  `write_lock`). And run lazy's update/restore **blocking** (`wait = true`): an async runner can record
+  the lockfile from the *current* commits before its checkout runs, silently undoing a pin or rollback.
+  The real-lazy test "rollback really moves plugins" guards both. Mocked tests did not catch either.
+- **Headless tests must stub every prompt.** `prompt_restart` and anything else that ends in
+  `vim.ui.select` blocks a headless run forever (it's Neovim's `inputlist()` there). Watch for prompts
+  that are *scheduled*: restore the stub only after a `vim.wait()` lets them fire.
 
 ## Conventions
 
