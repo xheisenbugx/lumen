@@ -115,7 +115,7 @@ any extra plugins. Open a file whose language you haven't enabled and Lumen offe
 pack. Toggle packs in an interactive picker with `:Lumen packs`. See [Language packs](#language-packs).
 
 - **Native LSP** through `vim.lsp.config` / `vim.lsp.enable`, with inlay hints, LSP folding when the
-  server supports it, reference highlights and per-server keymaps. Missing servers install through
+  server supports it (treesitter folding in files over 10k lines), reference highlights and per-server keymaps. Missing servers install through
   Mason after startup and attach to buffers that are already open.
 - **Treesitter** on the `main` branch. Missing parsers install in the background, and buffers get
   highlighting once they're ready.

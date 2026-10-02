@@ -9,6 +9,9 @@ local server_keys = {}
 ---@type table<string, {mason:boolean}> servers Lumen enabled (used by :Lumen why)
 M.servers = {}
 
+-- buffers longer than this keep treesitter folds instead of LSP folds (see on_attach)
+M.lsp_fold_max_lines = 10000
+
 ---@param client vim.lsp.Client
 ---@param buf integer
 local function on_attach(client, buf)
@@ -58,8 +61,13 @@ local function on_attach(client, buf)
     vim.lsp.inlay_hint.enable(true, { bufnr = buf })
   end
 
-  -- prefer LSP folding when the server provides it
-  if client:supports_method("textDocument/foldingRange", buf) then
+  -- prefer LSP folding when the server provides it, except in very large buffers: each
+  -- foldingRange response re-evaluates the folds of the whole buffer (~60-100ms at 40k lines,
+  -- after every edit); treesitter folds there (the default foldexpr) update incrementally
+  if
+    client:supports_method("textDocument/foldingRange", buf)
+    and vim.api.nvim_buf_line_count(buf) <= M.lsp_fold_max_lines
+  then
     local win = vim.fn.bufwinid(buf)
     if win ~= -1 then
       vim.wo[win][0].foldexpr = "v:lua.vim.lsp.foldexpr()"
