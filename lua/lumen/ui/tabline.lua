@@ -30,18 +30,35 @@ local function icon_hl(group, active)
   return name
 end
 
+-- shortest unique trailing path for each buffer: duplicate basenames grow parent dirs
+-- until they differ (a/src/init.lua, b/src/init.lua → a/src/init.lua, b/src/init.lua)
 ---@param bufs integer[]
 local function names(bufs)
-  local out, count = {}, {}
+  local out, full = {}, {}
   for _, b in ipairs(bufs) do
-    local n = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(b), ":t")
-    out[b] = n == "" and "[No Name]" or n
-    count[out[b]] = (count[out[b]] or 0) + 1
+    full[b] = vim.api.nvim_buf_get_name(b)
+    out[b] = full[b] == "" and "[No Name]" or full[b]:match("[^/]*$")
   end
-  for _, b in ipairs(bufs) do
-    if count[out[b]] > 1 then
-      local parent = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(b), ":h:t")
-      out[b] = parent .. "/" .. out[b]
+  local parts = {} -- split lazily: only duplicates pay for it
+  for depth = 2, 32 do
+    local count = {}
+    for _, b in ipairs(bufs) do
+      count[out[b]] = (count[out[b]] or 0) + 1
+    end
+    local grew = false
+    for _, b in ipairs(bufs) do
+      -- unnamed buffers stay "[No Name]"; paths that are fully shown can't grow
+      if count[out[b]] > 1 and full[b] ~= "" then
+        parts[b] = parts[b] or vim.split(full[b], "/", { trimempty = true })
+        local p = parts[b]
+        if #p >= depth then
+          out[b] = table.concat(p, "/", #p - depth + 1)
+          grew = true
+        end
+      end
+    end
+    if not grew then
+      break
     end
   end
   return out
@@ -94,7 +111,13 @@ function M.render()
       tabs = tabs .. ("%%%dT%%#%s# %d %%T"):format(t, t == curtab and "LumenTabPageActive" or "LumenTabPage", t)
     end
   end
-  local avail = vim.o.columns - (ntabs > 1 and ntabs * 3 or 0)
+  local avail = vim.o.columns
+  if ntabs > 1 then
+    -- " n " per tabpage
+    for t = 1, ntabs do
+      avail = avail - #tostring(t) - 2
+    end
+  end
 
   -- keep the active buffer visible: grow a window around it
   local first, last, used = cur_idx, cur_idx, items[cur_idx] and items[cur_idx].width or 0
@@ -141,7 +164,8 @@ local function update()
       n = n + 1
     end
   end
-  local want = n >= 1 and 2 or 0
+  -- tabpages are listed on the right: keep them visible even without file buffers
+  local want = (n >= 1 or vim.fn.tabpagenr("$") > 1) and 2 or 0
   if vim.o.showtabline ~= want then
     vim.o.showtabline = want
   end

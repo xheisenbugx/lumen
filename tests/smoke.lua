@@ -121,6 +121,39 @@ local function run()
     assert(ok, err)
   end)
 
+  check("tabline: duplicate names are disambiguated, tabpages stay visible", function()
+    local cur = vim.api.nvim_get_current_buf()
+    local a = vim.fn.bufadd("/tmp/lumen-smoke/a/src/util.lua")
+    local b = vim.fn.bufadd("/tmp/lumen-smoke/b/src/util.lua")
+    local n1, n2 = vim.api.nvim_create_buf(true, false), vim.api.nvim_create_buf(true, false)
+    for _, buf in ipairs({ a, b }) do
+      vim.bo[buf].buflisted = true
+    end
+    local str = vim.api.nvim_eval_statusline(require("lumen.ui.tabline").render(), { use_tabline = true }).str
+    for _, buf in ipairs({ a, b, n1, n2 }) do
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end
+    assert(str:find("a/src/util.lua", 1, true) and str:find("b/src/util.lua", 1, true), str)
+    assert(not str:find("./[No Name]", 1, true), str)
+    assert(vim.api.nvim_get_current_buf() == cur)
+    -- several tabpages but no file buffer: the tabline must still show them
+    local listed = vim.tbl_filter(function(buf)
+      return vim.bo[buf].buflisted
+    end, vim.api.nvim_list_bufs())
+    for _, buf in ipairs(listed) do
+      vim.bo[buf].buflisted = false
+    end
+    vim.cmd("tab split")
+    local shown = wait(1000, function()
+      return vim.o.showtabline == 2
+    end)
+    vim.cmd("tabclose")
+    for _, buf in ipairs(listed) do
+      vim.bo[buf].buflisted = true
+    end
+    assert(shown, "tabline hidden with 2 tabpages")
+  end)
+
   check("lua_ls attaches + winbar shows symbols", function()
     assert(
       wait(30000 * SLOW, function()
