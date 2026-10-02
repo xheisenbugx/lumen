@@ -144,11 +144,11 @@ local function lsp(buf)
   local status = vim.lsp.status()
   if status ~= "" then
     local frame = spinner[math.floor(vim.uv.hrtime() / 1e8) % #spinner + 1]
-    status = status:gsub("%%", "%%%%")
-    if #status > 40 then
-      status = status:sub(1, 39) .. "…"
+    -- truncate by characters, then escape: cutting bytes could split a multibyte char or a "%%"
+    if vim.fn.strchars(status) > 40 then
+      status = vim.fn.strcharpart(status, 0, 39) .. "…"
     end
-    return hl("LumenStlProgress", frame .. " " .. status)
+    return hl("LumenStlProgress", frame .. " " .. esc(status))
   end
   local names = {}
   for _, c in ipairs(vim.lsp.get_clients({ bufnr = buf })) do

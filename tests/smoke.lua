@@ -97,6 +97,30 @@ local function run()
     assert(require("lumen.ui.tabline").render():find("init.lua", 1, true), "buffer missing from tabline")
   end)
 
+  check("statusline: long LSP progress is cut by characters and stays escaped", function()
+    local status, columns = vim.lsp.status, vim.o.columns
+    vim.o.columns = 160 -- the LSP section only shows on wide screens
+    local function render(msg)
+      vim.lsp.status = function()
+        return msg
+      end
+      local ok, res = pcall(vim.api.nvim_eval_statusline, require("lumen.ui.statusline").render(), {})
+      vim.lsp.status = status
+      assert(ok, res)
+      return res.str
+    end
+    local ok, err = pcall(function()
+      -- a cut "%%" used to leave a lone "%" that ate the "…"
+      local s = render(string.rep("a", 38) .. "50%: indexing workspace")
+      assert(s:find(string.rep("a", 38) .. "5…", 1, true), s)
+      -- a byte cut used to split a multibyte character
+      s = render(string.rep("é", 50))
+      assert(s:find(string.rep("é", 39) .. "…", 1, true), s)
+    end)
+    vim.lsp.status, vim.o.columns = status, columns
+    assert(ok, err)
+  end)
+
   check("lua_ls attaches + winbar shows symbols", function()
     assert(
       wait(30000 * SLOW, function()
