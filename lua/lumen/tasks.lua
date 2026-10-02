@@ -32,12 +32,46 @@ local function exists(dir, name)
   return vim.uv.fs_stat(dir .. "/" .. name) ~= nil
 end
 
+--- JSON with comments (deno.jsonc, tsconfig-style): drop // and /* */ comments outside strings,
+--- then trailing commas, so vim.json can read it
+---@param s string
+function M.strip_jsonc(s)
+  local out, i, n, in_str = {}, 1, #s, false
+  while i <= n do
+    local c = s:sub(i, i)
+    if in_str then
+      out[#out + 1] = c
+      if c == "\\" then
+        out[#out + 1] = s:sub(i + 1, i + 1)
+        i = i + 1
+      elseif c == '"' then
+        in_str = false
+      end
+    elseif c == '"' then
+      in_str = true
+      out[#out + 1] = c
+    elseif s:sub(i, i + 1) == "//" then
+      i = (s:find("\n", i, true) or n + 1) - 1
+    elseif s:sub(i, i + 1) == "/*" then
+      i = (select(2, s:find("*/", i + 2, true)) or n)
+    else
+      out[#out + 1] = c
+    end
+    i = i + 1
+  end
+  return (table.concat(out):gsub(",(%s*[}%]])", "%1"))
+end
+
 local function json(path)
   local s = read(path)
   if not s then
     return
   end
-  local ok, data = pcall(vim.json.decode, s, { luanil = { object = true, array = true } })
+  local opts = { luanil = { object = true, array = true } }
+  local ok, data = pcall(vim.json.decode, s, opts)
+  if not ok then
+    ok, data = pcall(vim.json.decode, M.strip_jsonc(s), opts)
+  end
   return ok and data or nil
 end
 
@@ -251,6 +285,7 @@ end
 -- ── running ──────────────────────────────────────────────────
 
 local term ---@type snacks.win?
+local term_win ---@type integer?
 
 local function esc(s)
   return (s:gsub("%%", "%%%%"))
@@ -266,6 +301,19 @@ end
 function M.run_terminal(task)
   task = normalize(task)
   remember(task, "terminal")
+  local winbar = ("%%#LumenWinbarFile#  %s  %%#LumenWinbar#%s"):format(esc(task.name), esc(task.cmd))
+  if not _G.Snacks then
+    -- snacks.nvim disabled: a plain terminal split at the bottom
+    if term_win and vim.api.nvim_win_is_valid(term_win) then
+      vim.api.nvim_win_close(term_win, true)
+    end
+    vim.cmd("botright " .. math.max(8, math.floor(vim.o.lines * 0.3)) .. "new")
+    term_win = vim.api.nvim_get_current_win()
+    vim.wo[term_win].winbar = winbar
+    vim.fn.jobstart(task.cmd, { term = true, cwd = task.cwd })
+    vim.bo.bufhidden = "wipe"
+    return
+  end
   if term and term:valid() then
     term:close()
   end
@@ -279,7 +327,7 @@ function M.run_terminal(task)
       height = 0.3,
       title = (" %s "):format(task.name),
       -- both are statusline text: a raw `%` (e.g. `date +%s`) would be eaten or error
-      wo = { winbar = ("%%#LumenWinbarFile#  %s  %%#LumenWinbar#%s"):format(esc(task.name), esc(task.cmd)) },
+      wo = { winbar = winbar },
     },
   })
 end
@@ -421,6 +469,25 @@ function M.pick()
       preview = { text = ("# %s  (%s)\ncd %s\n%s\n"):format(t.name, t.source, t.cwd, t.cmd), ft = "sh" },
       where = where,
     }
+  end
+  if not _G.Snacks then
+    -- snacks.nvim disabled: the plain vim.ui.select list
+    return vim.ui.select(items, {
+      prompt = "Run task",
+      format_item = function(item)
+        return ("%s%-26s %-15s %s%s"):format(
+          item.last and "↻ " or "  ",
+          item.task.name,
+          item.task.source,
+          item.task.cmd,
+          item.where
+        )
+      end,
+    }, function(item)
+      if item then
+        M.run_terminal(item.task)
+      end
+    end)
   end
   Snacks.picker({
     title = "Tasks",
