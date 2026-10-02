@@ -132,22 +132,31 @@ local function run()
 
   check("invalid palette overrides / accent are ignored with a warning", function()
     local config = require("lumen.config")
-    local notify, warned = vim.notify, nil
+    -- collect every notification: on a fresh machine Mason's install progress can land in between
+    local notify, seen = vim.notify, {}
+    local function warning()
+      for _, m in ipairs(seen) do
+        if m:find("colors.night.bg", 1, true) then
+          return m
+        end
+      end
+    end
     vim.notify = function(msg)
-      warned = msg
+      seen[#seen + 1] = tostring(msg)
     end
     config.colors, config.accent = { night = { bg = "black", red = "#ff0000" } }, "pinkish"
     local ok, err = pcall(vim.cmd.colorscheme, "lumen")
-    wait(200, function()
-      return warned ~= nil
+    wait(1000 * SLOW, function()
+      return warning() ~= nil
     end)
+    local warned = warning()
     vim.notify, config.colors, config.accent = notify, {}, "amber"
     local normal, error_fg = vim.api.nvim_get_hl(0, { name = "Normal" }).bg, vim.api.nvim_get_hl(0, { name = "Error" })
     vim.cmd.colorscheme("lumen")
     assert(ok, "colorscheme failed: " .. tostring(err))
     assert(normal == tonumber("10131a", 16), "invalid bg not ignored")
     assert(next(error_fg), "valid override broke a group")
-    assert(warned and warned:find("colors.night.bg", 1, true) and warned:find("pinkish", 1, true), tostring(warned))
+    assert(warned and warned:find("pinkish", 1, true), "no warning among: " .. vim.inspect(seen))
   end)
 
   check("background toggle under lumen-dawn / lumen-night switches variant", function()
