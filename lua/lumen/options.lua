@@ -70,9 +70,12 @@ o.grepprg = "rg --vimgrep"
 o.grepformat = "%f:%l:%c:%m"
 o.sessionoptions = { "buffers", "curdir", "tabpages", "winsize", "help", "globals", "skiprtp", "folds" }
 
--- the system clipboard is slow to probe; set it after startup
+-- the system clipboard is slow to probe; set it after startup, unless your
+-- lua/config/options.lua (loaded right after this file) already did
 vim.schedule(function()
-  o.clipboard = vim.env.SSH_TTY and "" or "unnamedplus"
+  if not vim.api.nvim_get_option_info2("clipboard", {}).was_set then
+    o.clipboard = vim.env.SSH_TTY and "" or "unnamedplus"
+  end
 end)
 
 -- ── folds (treesitter-powered, all open by default) ─────────

@@ -644,6 +644,20 @@ local function run()
     assert(res.transparent, "transparent opt ignored by catppuccin: " .. vim.inspect(res))
   end)
 
+  check("lua/config/options.lua wins over Lumen's deferred clipboard", function()
+    local probe = [[
+      vim.defer_fn(function()
+        io.stdout:write(vim.json.encode({ clipboard = vim.o.clipboard }) .. "\n")
+        vim.cmd("qa!")
+      end, 300)
+    ]]
+    local res, out = child(probe, { ["lua/config/options.lua"] = 'vim.opt.clipboard = ""' })
+    assert(res.clipboard == "", "user clipboard overridden: " .. vim.inspect(res) .. (out.stderr or ""))
+    if not vim.env.SSH_TTY then
+      assert(vim.o.clipboard == "unnamedplus", "default clipboard not set: " .. vim.o.clipboard)
+    end
+  end)
+
   check("every pack reference resolves (parsers, servers, mason, formatters, linters)", function()
     require("lazy").load({ plugins = { "nvim-lspconfig", "conform.nvim", "nvim-lint", "mason-lspconfig.nvim" } })
     local parsers = require("nvim-treesitter.parsers")
