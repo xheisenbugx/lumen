@@ -225,6 +225,29 @@ local function run()
     vim.cmd("bwipeout!")
   end)
 
+  check("scrollbar: stays inside the text area of a window with a winbar", function()
+    vim.cmd("enew")
+    local lines = {}
+    for i = 1, 400 do
+      lines[i] = "line " .. i
+    end
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
+    local target = vim.api.nvim_get_current_win()
+    vim.wo[target].winbar = "winbar"
+    require("lumen.ui.scrollbar").refresh()
+    local height
+    for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      local cfg = vim.api.nvim_win_get_config(w)
+      if cfg.relative == "win" and cfg.win == target and cfg.width == 1 then
+        height = cfg.height
+      end
+    end
+    local want = vim.fn.winheight(target)
+    vim.wo[target].winbar = ""
+    vim.cmd("bwipeout!")
+    assert(height == want, ("scrollbar height %s, text area %d"):format(tostring(height), want))
+  end)
+
   check("update: snapshot + verification in a clean Neovim", function()
     local up = require("lumen.update")
     local path = up.snapshot()

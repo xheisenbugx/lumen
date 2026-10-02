@@ -56,7 +56,9 @@ local function render(win)
   end
   local buf = vim.api.nvim_win_get_buf(win)
   local total = vim.api.nvim_buf_line_count(buf)
-  local height = vim.api.nvim_win_get_height(win)
+  -- text rows only: nvim_win_get_height() counts the winbar on newer Neovims, which made the
+  -- bar (anchored below the winbar) spill onto the separator / statusline row
+  local height = vim.fn.winheight(win)
   if total <= height then
     return close(win)
   end
