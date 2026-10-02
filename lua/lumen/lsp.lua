@@ -1,0 +1,178 @@
+-- Native LSP (vim.lsp.config / vim.lsp.enable) + automatic Mason installs.
+local config = require("lumen.config")
+
+local M = {}
+
+---@type table<string, table> per-server extra keymaps: { { lhs, rhs, desc = "" } }
+local server_keys = {}
+
+---@type table<string, {mason:boolean}> servers Lumen enabled (used by :Lumen why)
+M.servers = {}
+
+---@param client vim.lsp.Client
+---@param buf integer
+local function on_attach(client, buf)
+  local function map(lhs, rhs, desc, mode, method)
+    if method and not client:supports_method(method, buf) then
+      return
+    end
+    vim.keymap.set(mode or "n", lhs, rhs, { buffer = buf, desc = desc, silent = true, nowait = true })
+  end
+
+  -- stylua: ignore start
+  map("gd", function() Snacks.picker.lsp_definitions() end, "Goto definition", nil, "textDocument/definition")
+  map("gD", function() Snacks.picker.lsp_declarations() end, "Goto declaration", nil, "textDocument/declaration")
+  map("gr", function() Snacks.picker.lsp_references() end, "References", nil, "textDocument/references")
+  map("gI", function() Snacks.picker.lsp_implementations() end, "Goto implementation", nil, "textDocument/implementation")
+  map("gy", function() Snacks.picker.lsp_type_definitions() end, "Goto type definition", nil, "textDocument/typeDefinition")
+  map("gai", function() Snacks.picker.lsp_incoming_calls() end, "Incoming calls", nil, "callHierarchy/incomingCalls")
+  map("gao", function() Snacks.picker.lsp_outgoing_calls() end, "Outgoing calls", nil, "callHierarchy/outgoingCalls")
+  map("K", function() vim.lsp.buf.hover() end, "Hover")
+  map("gK", function() vim.lsp.buf.signature_help() end, "Signature help", nil, "textDocument/signatureHelp")
+  map("<c-k>", function() vim.lsp.buf.signature_help() end, "Signature help", "i", "textDocument/signatureHelp")
+  map("<leader>ca", vim.lsp.buf.code_action, "Code action", { "n", "x" }, "textDocument/codeAction")
+  map("<leader>cr", vim.lsp.buf.rename, "Rename symbol", nil, "textDocument/rename")
+  map("<leader>cc", vim.lsp.codelens.run, "Run codelens", { "n", "x" }, "textDocument/codeLens")
+  map("<leader>cl", function() Snacks.picker.lsp_config() end, "LSP info")
+  map("<leader>cA", function()
+    vim.lsp.buf.code_action({ apply = true, context = { only = { "source" }, diagnostics = {} } })
+  end, "Source action", nil, "textDocument/codeAction")
+  -- stylua: ignore end
+
+  for _, k in ipairs(server_keys[client.name] or {}) do
+    map(k[1], k[2], k.desc, k.mode)
+  end
+
+  if config.inlay_hints and client:supports_method("textDocument/inlayHint", buf) and vim.bo[buf].buftype == "" then
+    vim.lsp.inlay_hint.enable(true, { bufnr = buf })
+  end
+
+  -- prefer LSP folding when the server provides it
+  if client:supports_method("textDocument/foldingRange", buf) then
+    local win = vim.fn.bufwinid(buf)
+    if win ~= -1 then
+      vim.wo[win][0].foldexpr = "v:lua.vim.lsp.foldexpr()"
+    end
+  end
+end
+
+-- mason packages for lspconfig names
+function M.package_for(server)
+  local ok, mlsp = pcall(require, "mason-lspconfig")
+  if not ok then
+    return
+  end
+  local map = mlsp.get_mappings().lspconfig_to_package
+  return map[server]
+end
+
+---@param pkgs string[]
+---@param on_done? fun(pkg:string)
+function M.install(pkgs, on_done)
+  if #pkgs == 0 then
+    return
+  end
+  -- never block startup: the registry refresh alone costs ~10ms
+  vim.defer_fn(function()
+    M._install(pkgs, on_done)
+  end, 300)
+end
+
+function M._install(pkgs, on_done)
+  if #pkgs == 0 then
+    return
+  end
+  local registry = require("mason-registry")
+  registry.refresh(function()
+    for _, name in ipairs(pkgs) do
+      local ok, pkg = pcall(registry.get_package, name)
+      if not ok then
+        Lumen.warn("Mason: unknown package `" .. name .. "`")
+      elseif not pkg:is_installed() and not pkg:is_installing() then
+        Lumen.notify("Installing " .. name .. "…")
+        pkg:install({}, function(success)
+          vim.schedule(function()
+            if success then
+              Lumen.notify("Installed " .. name)
+              if on_done then
+                on_done(name)
+              end
+            else
+              Lumen.error("Failed to install " .. name .. " — see :MasonLog")
+            end
+          end)
+        end)
+      end
+    end
+  end)
+end
+
+function M.setup(opts)
+  require("lumen.diagnostics").setup()
+
+  vim.api.nvim_create_autocmd("LspAttach", {
+    group = vim.api.nvim_create_augroup("lumen_lsp_attach", { clear = true }),
+    callback = function(ev)
+      local client = vim.lsp.get_client_by_id(ev.data.client_id)
+      if client then
+        on_attach(client, ev.buf)
+      end
+    end,
+  })
+
+  local mason_servers, enable = {}, {}
+  for name, server in pairs(opts.servers or {}) do
+    if server and server.enabled ~= false then
+      server = vim.deepcopy(server)
+      if server.mason ~= false then
+        mason_servers[#mason_servers + 1] = name
+      end
+      M.servers[name] = { mason = server.mason ~= false }
+      server_keys[name] = server.keys
+      server.mason, server.enabled, server.keys = nil, nil, nil
+      if next(server) then
+        vim.lsp.config(name, server)
+      end
+      enable[#enable + 1] = name
+    end
+  end
+
+  -- After startup, vim.lsp.enable() fires FileType for open buffers. We usually get here from
+  -- the BufReadPost (LazyFile) that is opening a file, *before* Neovim's filetype detection runs;
+  -- an extra FileType in that chain makes `:setf` a no-op and the new buffer ends up with no
+  -- filetype at all. So enable on the next tick, once detection has run.
+  if vim.v.vim_did_enter == 1 then
+    vim.schedule(function()
+      vim.lsp.enable(enable)
+    end)
+  else
+    vim.lsp.enable(enable)
+  end
+
+  -- resolve missing servers → mason packages after startup
+  vim.defer_fn(function()
+    local to_install, pkg_to_server = {}, {}
+    for _, name in ipairs(mason_servers) do
+      local cmd = (vim.lsp.config[name] or {}).cmd
+      local exe = type(cmd) == "table" and cmd[1] or nil
+      if not exe or vim.fn.executable(exe) == 0 then
+        local pkg = M.package_for(name)
+        if pkg then
+          to_install[#to_install + 1] = pkg
+          pkg_to_server[pkg] = name
+        end
+      end
+    end
+    M._install(to_install, function(pkg)
+      local server = pkg_to_server[pkg]
+      local fts = (vim.lsp.config[server] or {}).filetypes or {}
+      for _, b in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_loaded(b) and vim.tbl_contains(fts, vim.bo[b].filetype) then
+          pcall(vim.api.nvim_exec_autocmds, "FileType", { group = "nvim.lsp.enable", buffer = b })
+        end
+      end
+    end)
+  end, 300)
+end
+
+return M
