@@ -139,11 +139,15 @@ function M.report(buf)
         attached[sname] = nil
       else
         local bin, found = exe(cfg.cmd)
-        if bin and not found then
-          local pkg = servers[sname].mason and require("lumen.lsp").package_for(sname)
+        local pkg = servers[sname].mason and require("lumen.lsp").package_for(sname)
+        -- many lspconfig servers have a function `cmd`: then ask Mason whether the package is there
+        local reg_ok, registry = pcall(require, "mason-registry")
+        local pkg_missing = not bin and pkg and reg_ok and registry.has_package(pkg) and not registry.is_installed(pkg)
+        if (bin and not found) or pkg_missing then
           item(
             NO,
-            ("`%s` not installed (`%s` not on $PATH)"):format(sname, bin),
+            bin and ("`%s` not installed (`%s` not on $PATH)"):format(sname, bin)
+              or ("`%s` not installed (Mason package `%s` missing)"):format(sname, pkg),
             pkg and (":MasonInstall " .. pkg) or nil
           )
         else

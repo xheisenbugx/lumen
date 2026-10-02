@@ -432,6 +432,23 @@ local function run()
     assert(why.mason_pkg("biome-check") == "biome", "biome-check → " .. tostring(why.mason_pkg("biome-check")))
     assert(why.mason_pkg("prettierd") == "prettierd")
     assert(why.mason_pkg("lumen_no_such_tool") == nil)
+
+    -- regression: servers with a function `cmd` (jsonls, yamlls, eslint…) always read
+    -- "installed but not attached", even when their Mason package was missing
+    local registry = require("mason-registry")
+    local is_installed = registry.is_installed
+    registry.is_installed = function(name)
+      return name ~= "json-lsp" and is_installed(name)
+    end
+    vim.cmd("enew")
+    vim.bo.buftype, vim.bo.filetype = "nofile", "json"
+    local ok, json = pcall(function()
+      return table.concat(why.report(0), "\n")
+    end)
+    registry.is_installed = is_installed
+    vim.cmd("bwipeout!")
+    assert(ok, json)
+    assert(json:find("`jsonls` not installed (Mason package `json-lsp` missing)", 1, true), json)
   end)
 
   check("why: buffers without a filetype get a sensible report", function()
