@@ -84,25 +84,52 @@ function M._install(pkgs, on_done)
   end
   local registry = require("mason-registry")
   registry.refresh(function()
+    local todo = {} ---@type table[]
     for _, name in ipairs(pkgs) do
       local ok, pkg = pcall(registry.get_package, name)
       if not ok then
         Lumen.warn("Mason: unknown package `" .. name .. "`")
       elseif not pkg:is_installed() and not pkg:is_installing() then
-        Lumen.notify("Installing " .. name .. "…")
-        pkg:install({}, function(success)
-          vim.schedule(function()
-            if success then
-              Lumen.notify("Installed " .. name)
-              if on_done then
-                on_done(name)
-              end
-            else
-              Lumen.error("Failed to install " .. name .. " — see :MasonLog")
-            end
-          end)
-        end)
+        todo[#todo + 1] = pkg
       end
+    end
+    if #todo == 0 then
+      return
+    end
+    -- one notification for the whole batch, updated in place, instead of two toasts per package
+    local names = vim.tbl_map(function(pkg)
+      return pkg.name
+    end, todo)
+    local id = "lumen.mason." .. table.concat(names, ",")
+    local left, failed = #todo, {}
+    local function progress()
+      Lumen.notify(
+        ("Installing %s… (%d/%d)"):format(table.concat(names, ", "), #todo - left, #todo),
+        nil,
+        { id = id, timeout = false }
+      )
+    end
+    progress()
+    for _, pkg in ipairs(todo) do
+      pkg:install({}, function(success)
+        vim.schedule(function()
+          left = left - 1
+          if success then
+            if on_done then
+              on_done(pkg.name)
+            end
+          else
+            failed[#failed + 1] = pkg.name
+          end
+          if left > 0 then
+            return progress()
+          elseif #failed == 0 then
+            Lumen.notify("Installed " .. table.concat(names, ", "), nil, { id = id, timeout = 2500 })
+          else
+            Lumen.error(("Failed to install %s — see :MasonLog"):format(table.concat(failed, ", ")), { id = id })
+          end
+        end)
+      end)
     end
   end)
 end

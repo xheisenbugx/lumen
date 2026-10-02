@@ -18,16 +18,17 @@ end
 
 ---@param msg string
 ---@param level? integer
-function M.notify(msg, level)
-  vim.notify(msg, level or vim.log.levels.INFO, { title = "Lumen" })
+---@param opts? table extra vim.notify opts, e.g. snacks' `id` to update a notification in place
+function M.notify(msg, level, opts)
+  vim.notify(msg, level or vim.log.levels.INFO, vim.tbl_extend("force", { title = "Lumen" }, opts or {}))
 end
 
-function M.warn(msg)
-  M.notify(msg, vim.log.levels.WARN)
+function M.warn(msg, opts)
+  M.notify(msg, vim.log.levels.WARN, opts)
 end
 
-function M.error(msg)
-  M.notify(msg, vim.log.levels.ERROR)
+function M.error(msg, opts)
+  M.notify(msg, vim.log.levels.ERROR, opts)
 end
 
 ---@param name string
