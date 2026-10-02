@@ -316,13 +316,13 @@ return {
 }
 ```
 
-There are **45 packs**:
+There are **46 packs**, and all of them are optional. Only `lua`, `json`, `yaml`, `toml`, `markdown` and `bash` are on by default:
 
 | group | packs |
 |---|---|
-| Languages | `bash` `clojure` `cmake` `cpp` `dart` `dotnet` (C#/F#) `elixir` `gleam` `go` `graphql` `haskell` `java` `kotlin` `lua` `nix` `ocaml` `php` `prisma` `proto` `python` `ruby` `rust` `scala` `sql` `swift` `typescript` `zig` |
+| Languages | `bash` `clojure` `cmake` `cpp` `dart` `dotnet` (C#/F#) `elixir` `gleam` `go` `graphql` `haskell` `java` `kotlin` `lua` `nix` `ocaml` `php` `prisma` `proto` `python` `ruby` `rust` `scala` `sql` (with the [sqmeow](https://github.com/2giosangmitom/sqmeow.nvim) database client) `swift` `typescript` `zig` |
 | Web | `web` (html/css/tailwind) `vue` `svelte` `astro` |
-| Docs & data | `markdown` `tex` `typst` `json` `yaml` `toml` |
+| Docs & notes | `markdown` `org` ([org.nvim](https://github.com/xheisenbugx/org.nvim): Emacs Org mode with agenda, capture and clocking) `tex` `typst` `json` `yaml` `toml` |
 | Infrastructure | `docker` `helm` `terraform` |
 | Tools | `ai` (Copilot + sidekick) `dap` (debugging) `test` (neotest) `git` (GitHub issues & PRs via octo) `yazi` |
 
@@ -442,7 +442,9 @@ LazyVim's, so your muscle memory carries over.
 | `<C-/>` | terminal | `<leader>l` / `L` | Lazy / Lumen menu |
 
 **Packs:** `dap` adds `<leader>d*` and `F5` `F10` `F11`, `test` adds `<leader>t*`, `ai` adds
-`<leader>a*`, `git` adds Octo issues / PRs / review, and `yazi` adds `<leader>y` / `Y`.
+`<leader>a*`, `git` adds Octo issues / PRs / review, `yazi` adds `<leader>y` / `Y`, `sql` adds the
+`<leader>D*` database keys (drawer, connections, scratchpads, query history), and `org` brings
+org.nvim's own `<leader>o*` keys (agenda, capture, clocking).
 
 Search everything live with `<leader>sk` or `:Lumen keys`.
 
@@ -566,7 +568,8 @@ Lumen stands on the work of people who made Neovim's plugin ecosystem what it is
 - [gitsigns.nvim](https://github.com/lewis6991/gitsigns.nvim)
 - [catppuccin](https://github.com/catppuccin/nvim)
 - [neotest](https://github.com/nvim-neotest/neotest), [octo.nvim](https://github.com/pwntester/octo.nvim),
-  [yazi.nvim](https://github.com/mikavilpas/yazi.nvim), [vim-dadbod](https://github.com/tpope/vim-dadbod)
+  [yazi.nvim](https://github.com/mikavilpas/yazi.nvim), [sqmeow.nvim](https://github.com/2giosangmitom/sqmeow.nvim),
+  [org.nvim](https://github.com/xheisenbugx/org.nvim)
   and the other plugins the packs pull in
 - and the [Neovim](https://github.com/neovim/neovim) team, for the built-ins Lumen is designed around
 
