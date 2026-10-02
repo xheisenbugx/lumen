@@ -16,6 +16,8 @@ return {
   packs = { "lua", "json", "yaml", "toml", "markdown", "bash" },
 
   format_on_save = true,
+  -- :Lumen update → "stable": plugin versions CI tested together with Lumen · "latest": newest
+  update_channel = "stable",
   winbar = true, -- breadcrumbs per window
   scrollbar = true, -- right-edge bar with diagnostic / git / search marks
   diagnostics = "text", -- "text" | "lines" | "signs"  (cycle live with <leader>uv)

@@ -31,6 +31,9 @@ local defaults = {
   auto_install_parsers = true,
 
   format_on_save = true,
+  -- :Lumen update moves to: "stable" = plugin versions CI tested together with Lumen
+  -- (your own extra plugins still update to latest), "latest" = newest of everything
+  update_channel = "stable",
   inlay_hints = true,
 
   -- Lumen's own zero-dependency UI
