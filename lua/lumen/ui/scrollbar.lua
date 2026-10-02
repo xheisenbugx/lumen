@@ -9,7 +9,7 @@ local mc_ns = vim.api.nvim_create_namespace("nvim.multicursor")
 
 ---@type table<integer, {win:integer, buf:integer}> target window → scrollbar float
 local bars = {}
----@type table<integer, {diag?:table, search?:integer[], search_key?:string, mc?:table, mc_at?:number}>
+---@type table<integer, {diag?:table, diag_stale?:boolean, search?:integer[], search_key?:string, mc?:table, mc_at?:number}>
 local sources = {}
 
 local KIND = {
@@ -31,6 +31,10 @@ local MARKS = {
   info = { 20, "─", "LumenScrollInfo" },
   hint = { 10, "─", "LumenScrollHint" },
 }
+
+local function insert_updates()
+  return vim.diagnostic.config().update_in_insert == true
+end
 
 local function eligible(win)
   if not vim.api.nvim_win_is_valid(win) or vim.api.nvim_win_get_config(win).relative ~= "" then
@@ -81,8 +85,14 @@ local function render(win)
   sources[buf] = src
 
   -- diagnostics: vim.diagnostic.get() deep-copies every item (~9ms for 5k), so cache the
-  -- line positions per buffer and rebuild only on DiagnosticChanged
+  -- line positions per buffer and rebuild only on DiagnosticChanged. Servers republish on every
+  -- edit; while typing (and Neovim isn't updating diagnostics in insert mode) keep the old marks
+  -- until InsertLeave, which refreshes anyway.
+  if src.diag and src.diag_stale and not (vim.api.nvim_get_mode().mode:find("^[iR]") and not insert_updates()) then
+    src.diag = nil
+  end
   if not src.diag then
+    src.diag_stale = nil
     local list = {}
     for _, d in ipairs(vim.diagnostic.get(buf)) do
       list[#list + 1] = { d.lnum + 1, KIND[d.severity] or "hint" }
@@ -224,7 +234,7 @@ function M.setup()
     group = group,
     callback = function(ev)
       if ev.event == "DiagnosticChanged" and sources[ev.buf] then
-        sources[ev.buf].diag = nil
+        sources[ev.buf].diag_stale = true
       end
       schedule(150)
     end,
