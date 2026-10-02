@@ -115,6 +115,9 @@ map("n", "<leader>cd", vim.diagnostic.open_float, { desc = "Line diagnostics" })
 map("n", "<leader>cw", function()
   require("lumen.why").show()
 end, { desc = "Why? (buffer setup report)" })
+map("n", "<leader>cD", function()
+  require("lumen.why").show({ deep = true })
+end, { desc = "Doctor (deep report with fixes)" })
 
 -- ── tasks (<leader>r) ────────────────────────────────────────
 map("n", "<leader>rt", function()
