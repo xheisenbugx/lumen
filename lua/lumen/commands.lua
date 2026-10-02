@@ -71,8 +71,18 @@ local actions = {
   },
 }
 
-local names = vim.tbl_keys(actions)
-table.sort(names)
+-- menu order: everyday things first, maintenance last
+local names = { "packs", "why", "tasks", "keys", "config", "theme", "health", "update", "rollback", "profile" }
+local rest = vim.tbl_filter(function(n)
+  return not vim.tbl_contains(names, n)
+end, vim.tbl_keys(actions))
+table.sort(rest)
+names = vim.list_extend(
+  vim.tbl_filter(function(n)
+    return actions[n] ~= nil
+  end, names),
+  rest
+)
 
 vim.api.nvim_create_user_command("Lumen", function(cmd)
   local args = cmd.fargs

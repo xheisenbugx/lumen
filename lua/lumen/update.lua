@@ -164,10 +164,11 @@ function M.update()
         if #names == 0 then
           return Lumen.notify("✓ Everything is up to date")
         end
-        Lumen.notify(("Verifying %d updated plugins in a clean Neovim…"):format(#names))
+        local count = #names == 1 and "1 plugin" or (#names .. " plugins")
+        Lumen.notify(("Verifying %s in a clean Neovim…"):format(count))
         M.verify(function(ok, errors)
           if ok then
-            Lumen.notify(("✓ Update verified — %d plugins updated:\n%s"):format(#names, table.concat(names, ", ")))
+            Lumen.notify(("✓ Update verified — %s updated:\n%s"):format(count, table.concat(names, ", ")))
             require("lumen.packs").prompt_restart("Update complete")
             return
           end

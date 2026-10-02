@@ -73,7 +73,12 @@ function M.report(buf)
     item(WARN, ("parser `%s` installed but highlighting is off"):format(lang), "<leader>uT")
   else
     local known = Lumen.is_loaded("nvim-treesitter") and require("nvim-treesitter.parsers")[lang]
-    item(NO, ("no `%s` parser installed"):format(lang), known and (":TSInstall " .. lang) or nil)
+    if known or not Lumen.is_loaded("nvim-treesitter") then
+      item(NO, ("no `%s` parser installed"):format(lang), known and (":TSInstall " .. lang) or nil)
+    else
+      -- e.g. org (org.nvim highlights it itself): nothing to install, so nothing is wrong
+      item(INFO, ("no treesitter parser exists for `%s` (regular syntax highlighting)"):format(lang))
+    end
   end
   add()
 

@@ -368,7 +368,7 @@ end
 function M.pick()
   local tasks = M.discover()
   if #tasks == 0 then
-    return Lumen.warn("No tasks found for this project")
+    return Lumen.warn("No tasks found for this project — add your own with `tasks = {}` in lua/config/lumen.lua")
   end
   local last = M.last()
   local root = Lumen.root()

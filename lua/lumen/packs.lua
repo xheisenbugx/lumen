@@ -227,7 +227,7 @@ function M.pick()
   end
   local before = snapshot()
   Snacks.picker({
-    title = "Language Packs",
+    title = "Language Packs · <cr> toggles",
     items = items,
     layout = { preset = "select" },
     format = function(item)
