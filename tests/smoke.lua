@@ -437,6 +437,36 @@ local function run()
     vim.cmd("bwipeout!")
   end)
 
+  check("scrollbar: search marks follow `*` without a cmdline or a scroll", function()
+    vim.cmd("enew")
+    local lines = {}
+    for i = 1, 400 do
+      lines[i] = i == 300 and "needle" or ("line " .. i)
+    end
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
+    local target = vim.api.nvim_get_current_win()
+    require("lumen.ui.scrollbar").refresh()
+    vim.wait(400) -- let refreshes queued by :enew run first
+    vim.fn.setreg("/", "\\<needle\\>")
+    vim.v.hlsearch = 1
+    vim.api.nvim_exec_autocmds("CursorMoved", {}) -- what `*` / `n` trigger
+    local function text()
+      for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+        local cfg = vim.api.nvim_win_get_config(w)
+        if cfg.relative == "win" and cfg.win == target and cfg.width == 1 then
+          return table.concat(vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(w), 0, -1, false))
+        end
+      end
+      return ""
+    end
+    local ok = wait(1000, function()
+      return text():find("─", 1, true) ~= nil
+    end)
+    vim.cmd("nohlsearch")
+    vim.cmd("bwipeout!")
+    assert(ok, "no search mark: " .. text())
+  end)
+
   check("scrollbar: stays inside the text area of a window with a winbar", function()
     vim.cmd("enew")
     local lines = {}

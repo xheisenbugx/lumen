@@ -229,6 +229,18 @@ function M.setup()
       schedule(150)
     end,
   })
+  -- `*`, `#`, `n` after :nohlsearch… change the search without a cmdline or (often) a scroll
+  local search_key
+  vim.api.nvim_create_autocmd("CursorMoved", {
+    group = group,
+    callback = function()
+      local key = vim.v.hlsearch == 1 and vim.fn.getreg("/") or ""
+      if key ~= search_key then
+        search_key = key
+        schedule(10)
+      end
+    end,
+  })
   vim.api.nvim_create_autocmd("BufWipeout", {
     group = group,
     callback = function(ev)
