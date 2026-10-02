@@ -1,9 +1,10 @@
 -- Every file in lua/plugins/ is a lazy.nvim spec: add plugins or override Lumen's.
 return {
   -- add a plugin
-  -- { "christoomey/vim-tmux-navigator", lazy = false },
+  -- { "tpope/vim-fugitive", cmd = "Git" },
 
-  -- change Lumen settings (same keys as lua/config/lumen.lua, except packs)
+  -- change Lumen settings (same keys as lua/config/lumen.lua, except packs, leader, localleader,
+  -- format_on_save, ui2 and smooth_scroll, which are read before opts exist)
   -- { "lumen", opts = { accent = "violet" } },
 
   -- tweak a built-in plugin (opts are deep-merged with Lumen's)

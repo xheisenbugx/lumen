@@ -17,7 +17,8 @@ local defaults = {
   winbar = true,
   -- right-edge scrollbar with diagnostics / git / search / cursor marks
   scrollbar = true,
-  -- extra tasks for the task runner: { { name = "deploy", cmd = "./deploy.sh", cwd = "?" } }
+  -- extra tasks for the task runner: { { name = "deploy", cmd = "./deploy.sh" } }, plus an optional
+  -- `cwd` (default: the project root)
   tasks = {},
   -- how diagnostics show inline: "text" | "lines" (current line) | "signs"
   diagnostics = "text",

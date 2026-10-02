@@ -32,7 +32,7 @@ carrying compatibility layers, and it brings its own colorscheme, statusline, ta
 scrollbar, so the whole editor speaks one visual language.
 
 You use it the way you use LazyVim. Lumen is a lazy.nvim plugin, and your config dir holds a tiny
-starter: about 20 lines of `init.lua`, one settings file, and your own plugins.
+starter: about 30 lines of `init.lua`, one settings file, and your own plugins.
 
 ## Why Lumen
 
@@ -135,13 +135,13 @@ the command that fixes it.
 ### Task runner
 
 `<leader>rt` finds your project's tasks on its own: package.json scripts (npm, pnpm, yarn or bun,
-picked from your lockfile), deno, Makefile, justfile, cargo, go, uv/pytest, composer, mix, gradle,
-maven, dotnet, zig, cmake and docker compose. In a monorepo it uses the manifest nearest to your
+picked from your lockfile), deno, Makefile, justfile, cargo, go, uv/poetry/pytest, composer, mix,
+gradle (via `gradlew`), maven, dotnet, zig, cmake and docker compose. In a monorepo it uses the manifest nearest to your
 file.
 
 Run a task in a terminal split, or press `<C-q>` to run it in the background: a spinner shows in
 the statusline and errors land in quickfix. `<leader>rr` re-runs the last task for the project.
-Add your own with `tasks = {}`.
+Add your own with `tasks = {}` in `lua/config/lumen.lua`.
 
 ### Safe updates
 
@@ -161,7 +161,7 @@ everything still loads in a separate, clean Neovim. If something broke, it offer
   line only, and signs only.
 - **Project root detection.** LSP workspace first, then root markers, then the cwd, cached per buffer.
 - **Familiar editing tools:** flash, mini.surround, mini.ai, mini.pairs, oil, gitsigns, trouble,
-  todo-comments, persistence sessions and which-key.
+  todo-comments, grug-far (search & replace), persistence sessions and which-key.
 
 <details>
 <summary><b>Watch the tour</b></summary>
@@ -189,7 +189,10 @@ curl -fsSL https://raw.githubusercontent.com/xheisenbugx/lumen/main/install.sh |
 NVIM_APPNAME=lumen nvim
 ```
 
-The first launch installs plugins, parsers and servers. After that, run `:checkhealth lumen`.
+The first launch installs the plugins (in lazy.nvim's window; press `q` when it's done) and the
+treesitter parsers in the background. Language servers install through Mason the first time you
+open a file that needs them. Progress shows as notifications. After that, run `:checkhealth lumen`.
+The installer also warns you right away if `rg`, the `tree-sitter` CLI or a C compiler is missing.
 
 | flag | what it does |
 |---|---|
@@ -197,8 +200,10 @@ The first launch installs plugins, parsers and servers. After that, run `:checkh
 | `--fresh` | also back up the app's data, state and cache dirs, for a clean switch from another distro |
 | `--repo owner/name` | load Lumen from a fork |
 | `--dev` | load Lumen from the local checkout the script lives in (for contributors) |
+| `--help` | show the usage |
 
-The installer never deletes anything. Existing directories are moved to `<dir>.bak-<timestamp>`.
+The installer never deletes anything. Existing directories (and symlinks) are moved to
+`<dir>.bak-<timestamp>`.
 
 <details>
 <summary><b>Manual install (LazyVim-style)</b></summary>
@@ -224,7 +229,7 @@ Copy [`starter/`](starter) for the full file, settings template and plugin examp
 
 ```
 ~/.config/nvim/
-├── init.lua               bootstrap: lazy.nvim + Lumen (≈20 lines, rarely touched)
+├── init.lua               bootstrap: lazy.nvim + Lumen (≈30 lines, rarely touched)
 ├── lazy-lock.json         your plugin versions
 └── lua/
     ├── config/lumen.lua   settings: theme, accent, packs, toggles
@@ -274,7 +279,7 @@ return {
 | `on_highlights` | `nil` | `function(hl, palette)` to tweak any highlight |
 | `winbar` | `true` | per-window breadcrumbs from LSP symbols |
 | `scrollbar` | `true` | right-edge scrollbar with diagnostic / git / search / cursor marks |
-| `tasks` | `{}` | extra tasks: `{ { name = "deploy", cmd = "./deploy.sh", cwd = "?" } }` |
+| `tasks` | `{}` | extra tasks: `{ { name = "deploy", cmd = "./deploy.sh" } }`; `cwd` is optional (default: the project root) |
 | `diagnostics` | `"text"` | `"text"` \| `"lines"` (current line) \| `"signs"` |
 | `packs` | `{ "lua", "json", "yaml", "toml", "markdown", "bash" }` | language packs to enable |
 | `suggest_packs` | `true` | offer a pack when you open a filetype it supports |
@@ -292,7 +297,9 @@ The source of truth is [`lua/lumen/config.lua`](lua/lumen/config.lua).
 
 </details>
 
-Settings other than `packs` can also be passed as spec opts, from any file in `lua/plugins/`:
+Most settings can also be passed as spec opts, from any file in `lua/plugins/`. The exceptions are
+`packs`, `leader`, `localleader`, `format_on_save`, `ui2` and `smooth_scroll` (and `transparent`
+for Catppuccin): Lumen reads those before any opts exist, so set them in `lua/config/lumen.lua`.
 
 ```lua
 return {
@@ -307,7 +314,7 @@ return {
 A pack is one file that lists what a language needs:
 
 ```lua
--- lua/lumen/packs/python.lua
+-- lua/lumen/packs/python.lua (simplified)
 return {
   ft = { "python" },
   parsers = { "python" },
@@ -329,6 +336,22 @@ There are **46 packs**, and all of them are optional. Only `lua`, `json`, `yaml`
 `dap` and `test` read your other packs. Enabling `python` plus `dap` installs debugpy, and
 enabling `typescript` plus `test` sets up the jest and vitest adapters.
 
+`sql`: open the drawer with `<leader>Dd`, add a connection with `<leader>Da` (or `A` in the
+drawer), press `<cr>` on it to connect and `u` to query it. `<leader>Ds` opens a scratchpad where
+`<cr>` runs the statement under the cursor; in a `.sql` file use `:Sqmeow execute`. The engine
+binary downloads when the plugin installs.
+
+`org`: notes live in `~/org` (agenda: `~/org/**/*.org`, capture: `~/org/refile.org`). To move
+them, override all three paths from a file in `lua/plugins/`:
+
+```lua
+{ "xheisenbugx/org.nvim", opts = {
+  org_directory = "~/notes",
+  agenda_files = { "~/notes/**/*.org" },
+  default_notes_file = "~/notes/refile.org",
+} }
+```
+
 Four ways to enable a pack:
 
 - `:Lumen packs` opens the picker. Press enter to toggle, then restart when asked.
@@ -336,7 +359,7 @@ Four ways to enable a pack:
 - Add it to `packs = {}` in `lua/config/lumen.lua`.
 - Open a file of that type and accept Lumen's offer.
 
-To write your own, drop a file in `lua/lumen/packs/` and it shows up in the list. The test suite
+To write your own, drop a file in `lua/lumen/packs/` in your config dir and it shows up in the list. The test suite
 checks that every pack is well-formed and that every parser, server, Mason package, formatter and
 linter it references actually resolves.
 
@@ -358,7 +381,7 @@ LazyVim's, so your muscle memory carries over.
 | `<C-/>` | terminal | `<leader>L` | Lumen menu |
 
 <details>
-<summary><b>All keymaps</b></summary>
+<summary><b>More keymaps</b></summary>
 <br>
 
 **Find & search**
@@ -379,6 +402,7 @@ LazyVim's, so your muscle memory carries over.
 | `<leader>sj` / `sm` | jumps / marks | `<leader>su` | undo history |
 | `<leader>sq` / `sl` | quickfix / location list | `<leader>sR` | resume last picker |
 | `<leader>st` | todos | `<leader>sp` | plugin specs |
+| `<leader>n` | notification history | `<leader>?` | buffer keymaps (which-key) |
 
 **Code & LSP**
 
@@ -405,7 +429,7 @@ LazyVim's, so your muscle memory carries over.
 | `<leader>gd` | diff (hunks) | `<leader>gS` | stash |
 | `]h` `[h` | next / prev hunk | `<leader>gh*` | hunk actions |
 
-**Tasks, editing & multicursor**
+**Tasks, editing & multicursor (cursors need Neovim 0.13+)**
 
 | key | action | key | action |
 |---|---|---|---|
@@ -557,9 +581,11 @@ Lumen stands on the work of people who made Neovim's plugin ecosystem what it is
   [flash](https://github.com/folke/flash.nvim), [trouble](https://github.com/folke/trouble.nvim),
   [todo-comments](https://github.com/folke/todo-comments.nvim), [persistence](https://github.com/folke/persistence.nvim),
   [lazydev](https://github.com/folke/lazydev.nvim), [sidekick](https://github.com/folke/sidekick.nvim),
+  [ts-comments](https://github.com/folke/ts-comments.nvim),
   and for [LazyVim](https://github.com/LazyVim/LazyVim), whose layout Lumen follows
 - [mini.nvim](https://github.com/nvim-mini/mini.nvim) (icons, ai, surround, pairs, hipatterns)
-- [blink.cmp](https://github.com/saghen/blink.cmp)
+- [blink.cmp](https://github.com/saghen/blink.cmp) and [friendly-snippets](https://github.com/rafamadriz/friendly-snippets)
+- [grug-far.nvim](https://github.com/MagicDuck/grug-far.nvim)
 - [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter) and its textobjects
 - [conform.nvim](https://github.com/stevearc/conform.nvim) and [oil.nvim](https://github.com/stevearc/oil.nvim)
 - [nvim-lint](https://github.com/mfussenegger/nvim-lint) and [nvim-dap](https://github.com/mfussenegger/nvim-dap)

@@ -1,5 +1,7 @@
 -- Emacs Org mode in pure Lua: outlines, TODOs, agenda, capture, clocking, tables, Babel, export.
--- Settings: { "xheisenbugx/org.nvim", opts = { org_directory = "~/notes" } } in your lua/plugins/.
+-- Notes live in ~/org. To move them, override all three paths from a file in your lua/plugins/:
+--   { "xheisenbugx/org.nvim", opts = { org_directory = "~/notes",
+--     agenda_files = { "~/notes/**/*.org" }, default_notes_file = "~/notes/refile.org" } }
 ---@type lumen.Pack
 return {
   desc = "Org mode (org.nvim: agenda, capture, clocking, tables, Babel, export)",

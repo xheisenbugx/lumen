@@ -63,8 +63,11 @@ Other top-level pieces:
 - `install.sh` copies `starter/` into `~/.config/<appname>` (backing up whatever is there). It works from a
   checkout or piped from `curl` (it then clones the repo for the starter). It rewrites the Lumen spec line
   (the one matching `name = "lumen", import = "lumen.plugins"`) for `--repo owner/name` or `--dev` (a `dir =`
-  spec pointing at the local checkout). Other flags: `--appname`, `--fresh`. `scripts/env.sh` applies the same
-  `dir =` rewrite to build the test sandbox, so keep that line's shape stable.
+  spec pointing at the local checkout). Other flags: `--appname`, `--fresh`, `--help`. It validates values
+  before touching anything (`--appname` must be a plain name: an empty one would point at `~/.config`
+  itself), renames symlinks instead of removing them, and warns when `rg`, the `tree-sitter` CLI or a C
+  compiler is missing. `scripts/env.sh` applies the same `dir =` rewrite to build the test sandbox, so keep
+  that line's shape stable.
 
 ## Language packs
 
@@ -93,7 +96,8 @@ linters to nvim-lint, and `plugins` are appended as-is. `setup()` runs at spec t
 fields you need, and run `./scripts/test.sh`. **Every name must actually exist:** treesitter parser
 names, lspconfig server names that have a Mason mapping (or set `mason = false` on the server), Mason
 package names in `tools`, conform formatter names and nvim-lint linter names. The smoke test
-"every pack reference resolves" enforces this; "every language pack is well-formed" checks the field types.
+"every pack reference resolves" enforces this; "every language pack is well-formed" checks that `ft`,
+`parsers`, `tools`, `plugins` and `servers` are tables.
 
 ## Testing & tooling
 
@@ -153,6 +157,14 @@ Rules:
   refers to an existing plugin by name, which is how `plugins/init.lua` extends the user's spec. That's
   why **the user's spec must name Lumen `lumen`** (`name = "lumen"`).
 - Lua `a and nil or b` **always** yields `b`. Write `(not a) and b or nil`.
+- **Don't stack toasts for background work.** nvim-treesitter echoes 3–4 lines per parser, which
+  ui2 keeps on screen. Lumen's background parser installs go through the `install()` helper in
+  `plugins/treesitter.lua`, which mutes those lines (`Logger.lumen_quiet`, still in `:TSLog`) and
+  shows one notification. Mason installs are batched the same way in `lsp.lua`. For progress, call
+  `Lumen.notify(msg, level, { id = … })` with a stable id so snacks updates it in place.
+- `:restart` restores the session into the **current window**. When it follows a pack change,
+  lazy.nvim's install float is the current window during startup, so `init.lua` closes that float
+  at VimEnter when `v:startreason` is `restart`.
 
 ## Conventions
 
