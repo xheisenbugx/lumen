@@ -210,6 +210,22 @@ local function run()
     )
   end)
 
+  check("winbar: clicking a crumb jumps to the symbol", function()
+    local win = vim.api.nvim_get_current_win()
+    local cursor = vim.api.nvim_win_get_cursor(win)
+    require("lumen.ui.winbar").render()
+    local getmousepos = vim.fn.getmousepos
+    vim.fn.getmousepos = function()
+      return { winid = win }
+    end
+    local ok, err = pcall(_G.LumenWinbarClick, 1, 1, "l", "")
+    vim.fn.getmousepos = getmousepos
+    assert(ok, err)
+    local line = vim.fn.search("^function M.setup", "nw")
+    assert(vim.api.nvim_win_get_cursor(win)[1] == line, "cursor not on M.setup")
+    vim.api.nvim_win_set_cursor(win, cursor)
+  end)
+
   check("fold text keeps highlights + count", function()
     vim.v.foldstart, vim.v.foldend = 5, 10
     local chunks = require("lumen.ui.fold").text()

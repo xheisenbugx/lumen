@@ -108,7 +108,7 @@ function M.request(buf)
     return
   end
   pending[buf] = true
-  client:request(
+  local ok = client:request(
     "textDocument/documentSymbol",
     { textDocument = vim.lsp.util.make_text_document_params(buf) },
     function(err, result)
@@ -123,6 +123,10 @@ function M.request(buf)
     end,
     buf
   )
+  -- a stopping client refuses the request and never calls back: don't block this buffer forever
+  if not ok then
+    pending[buf] = nil
+  end
 end
 
 ---@param symbols lumen.winbar.Symbol[]
@@ -219,7 +223,12 @@ function _G.LumenWinbarClick(idx, clicks, button, mods)
   if s and button == "l" then
     vim.api.nvim_set_current_win(win)
     vim.cmd("normal! m'")
-    vim.api.nvim_win_set_cursor(win, { s.range.start.line + 1, s.range.start.character })
+    -- symbols can be stale after an edit: clamp to the buffer
+    local buf = vim.api.nvim_win_get_buf(win)
+    local line = math.min(s.range.start.line + 1, vim.api.nvim_buf_line_count(buf))
+    local text = vim.api.nvim_buf_get_lines(buf, line - 1, line, false)[1] or ""
+    local col = vim.str_byteindex(text, "utf-16", math.min(s.range.start.character, vim.str_utfindex(text, "utf-16")))
+    vim.api.nvim_win_set_cursor(win, { line, col })
   end
 end
 
