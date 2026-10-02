@@ -362,10 +362,11 @@ function M.setup()
       refresh(ev.buf)
     end,
   })
-  vim.api.nvim_create_autocmd({ "BufWipeout", "WinClosed" }, {
+  -- :bdelete only unloads: drop the buffer's symbols then too (re-requested if it comes back)
+  vim.api.nvim_create_autocmd({ "BufUnload", "BufWipeout", "WinClosed" }, {
     group = group,
     callback = function(ev)
-      if ev.event == "BufWipeout" then
+      if ev.event ~= "WinClosed" then
         cache[ev.buf] = nil
         heads[vim.api.nvim_buf_get_name(ev.buf)] = nil
       else

@@ -251,7 +251,8 @@ function M.setup()
       end
     end,
   })
-  vim.api.nvim_create_autocmd("BufWipeout", {
+  -- :bdelete only unloads: drop per-buffer data then too (it is rebuilt if the buffer comes back)
+  vim.api.nvim_create_autocmd({ "BufUnload", "BufWipeout" }, {
     group = group,
     callback = function(ev)
       sources[ev.buf] = nil
