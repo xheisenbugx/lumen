@@ -201,8 +201,13 @@ return {
         goto_previous_end = { ["[F"] = "@function.outer", ["[C"] = "@class.outer", ["[A"] = "@parameter.inner" },
       }
       local names = { f = "function", c = "class", a = "parameter" }
+      -- Neovim 0.13+ uses ]C / [C to jump between multicursors: leave them to Neovim there
+      local reserved = vim.api.nvim_mcursor and { ["]C"] = true, ["[C"] = true } or {}
       for method, keys in pairs(moves) do
         for key, query in pairs(keys) do
+          if reserved[key] then
+            goto continue
+          end
           local what = names[key:sub(2, 2):lower()]
           local desc = (key:sub(1, 1) == "]" and "Next " or "Prev ")
             .. what
@@ -213,6 +218,7 @@ return {
             end
             pcall(require("nvim-treesitter-textobjects.move")[method], query, "textobjects")
           end, { desc = desc, silent = true })
+          ::continue::
         end
       end
     end,
