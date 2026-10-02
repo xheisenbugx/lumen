@@ -115,6 +115,12 @@ function M.setup(opts)
       require("lumen.ui.scrollbar").setup()
     end
     require("lumen.ui.fold").setup()
+    -- cheaper sign lookup for Snacks' statuscolumn (after the UI is up: it's loaded on first use)
+    Lumen.on_very_lazy(function()
+      if vim.o.statuscolumn:find("snacks.statuscolumn", 1, true) then
+        require("lumen.ui.statuscolumn").setup()
+      end
+    end)
 
     -- user hooks, loaded last so they win (LazyVim-style names, plus the old lua/user/*)
     for _, mod in ipairs({ "config.autocmds", "config.keymaps", "user.autocmds", "user.keymaps" }) do

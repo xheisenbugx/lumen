@@ -53,6 +53,7 @@ Module map (`lua/lumen/`):
 | `colors/compat.lua` | keeps `Lumen*` UI groups styled under non-Lumen colorschemes |
 | `colors/init.lua` | `load(variant)`, `blend`, `palette` (used by `colors/lumen*.lua`) |
 | `ui/statusline.lua` · `ui/tabline.lua` · `ui/winbar.lua` · `ui/scrollbar.lua` · `ui/fold.lua` | Lumen's own UI, no plugin dependencies |
+| `ui/statuscolumn.lua` | windowed sign lookup patched into Snacks' statuscolumn (it otherwise fetches every sign of the buffer on each redraw) |
 | `util/init.lua` | the global `Lumen` helpers (`map`, `notify`, `try_require`…) |
 | `util/root.lua` | project root detection (LSP, then markers, then cwd), cached per buffer |
 | `plugins/*.lua` | lazy.nvim specs: `init` (lumen itself), coding, colorschemes, editor, format, lsp, treesitter, ui, `packs` (pack specs) |
@@ -117,7 +118,8 @@ Rules:
 
 - **Every bug fix gets a smoke test** in `tests/smoke.lua` (use `check(name, fn)` and `wait(ms, cond)`).
 - Keep the performance budgets green: statusline and tabline render in **< 150 µs**, and scrollbar
-  refresh in **< 1 ms**, on a 20k-line buffer with 3k diagnostics. Keep the **WCAG contrast floor**
+  refresh in **< 1 ms**, and a fresh statuscolumn sign lookup in **< 500 µs**, on a 20k-line buffer
+  with 3k diagnostics. Keep the **WCAG contrast floor**
   green too (4.5:1 for text colors, 3.5 for `comment`, 2.5 for `gutter`, in both variants).
 - **Never test against the user's real dirs** (`~/.config/nvim`, `~/.config/lumen`,
   `~/.local/share/<app>`, `~/.local/state/<app>`, `~/.cache/<app>`) and never run `install.sh`

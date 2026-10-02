@@ -876,6 +876,52 @@ local function run()
     vim.cmd("bwipeout!")
   end)
 
+  check("statuscolumn signs: windowed lookup matches Snacks and stays cheap", function()
+    vim.cmd("enew")
+    local lines = {}
+    for i = 1, 20000 do
+      lines[i] = ("local value_%d = compute(%d)"):format(i, i)
+    end
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
+    local diags = {}
+    for i = 1, 3000 do
+      diags[i] = { lnum = i * 6, col = 0, message = "x", severity = (i % 4) + 1 }
+    end
+    vim.diagnostic.set(vim.api.nvim_create_namespace("lumen_signs"), 0, diags)
+    vim.api.nvim_buf_set_mark(0, "a", 300, 0, {})
+    local sc = require("snacks.statuscolumn")
+    local lsc = require("lumen.ui.statuscolumn")
+    lsc.setup()
+    assert(sc._lumen_windowed and lsc.original, "Snacks.statuscolumn.buf_signs not patched")
+    local wanted = { git = true, sign = true, mark = true, fold = true }
+    local function key(list)
+      local out = {}
+      for _, s in ipairs(list or {}) do
+        out[#out + 1] = table.concat({ tostring(s.name), s.type, tostring(s.text), tostring(s.priority) }, "|")
+      end
+      table.sort(out)
+      return table.concat(out, ";")
+    end
+    local buf = vim.api.nvim_get_current_buf()
+    local full, win = lsc.original(buf, wanted), sc.buf_signs(buf, wanted)
+    for l = 1, 20000 do
+      assert(key(full[l]) == key(win[l]), ("signs differ on line %d: %s vs %s"):format(l, key(full[l]), key(win[l])))
+    end
+    assert(key(win[300]):find("mark", 1, true), "mark missing")
+    -- what a redraw needs after Snacks drops its cache: a fresh lookup of ~60 visible lines
+    local t = vim.uv.hrtime()
+    for _ = 1, 50 do
+      local signs = sc.buf_signs(buf, wanted)
+      for l = 10000, 10060 do
+        local _ = signs[l]
+      end
+    end
+    local us = (vim.uv.hrtime() - t) / 50 / 1000
+    io.stdout:write(("      statuscolumn sign lookup %.0fµs\n"):format(us))
+    assert(us < 500 * SLOW, ("statuscolumn sign lookup too slow: %.0fµs"):format(us))
+    vim.cmd("bwipeout!")
+  end)
+
   check("theme contrast (WCAG) in both variants", function()
     local function lum(h)
       local function ch(i)
