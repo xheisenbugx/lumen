@@ -257,7 +257,8 @@ function M.render()
   local buf = vim.api.nvim_win_get_buf(win)
   local wide = vim.o.columns >= 100
 
-  local left = join({ mode(), git(buf), file(buf) }, hl("LumenStl", "  "))
+  -- `%<`: when the line is too long, cut the branch / path, not the mode on the far left
+  local left = mode() .. hl("LumenStl", "  %<") .. join({ git(buf), file(buf) }, hl("LumenStl", "  "))
   local right = join({
     extras(),
     diagnostics(buf),

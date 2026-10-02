@@ -158,6 +158,15 @@ local function run()
     assert(ok, err)
   end)
 
+  check("statusline: a narrow screen cuts the path, not the mode", function()
+    local columns = vim.o.columns
+    vim.o.columns = 40
+    local ok, res = pcall(vim.api.nvim_eval_statusline, require("lumen.ui.statusline").render(), { maxwidth = 40 })
+    vim.o.columns = columns
+    assert(ok, res)
+    assert(res.str:find("NORMAL", 1, true), res.str)
+  end)
+
   check("tabline: duplicate names are disambiguated, tabpages stay visible", function()
     local cur = vim.api.nvim_get_current_buf()
     local a = vim.fn.bufadd("/tmp/lumen-smoke/a/src/util.lua")
