@@ -168,6 +168,14 @@ local search = { key = nil, res = {} }
 
 local function extras()
   local out = {}
+  -- org.nvim clock / timer (empty unless one is running)
+  local org = package.loaded["org"]
+  if org and org.statusline then
+    local ok, clock = pcall(org.statusline)
+    if ok and clock and clock ~= "" then
+      out[#out + 1] = hl("LumenStlProgress", esc(clock))
+    end
+  end
   local tasks = package.loaded["lumen.tasks"]
   if tasks and next(tasks.running) then
     local frame = spinner[math.floor(vim.uv.hrtime() / 1e8) % #spinner + 1]
