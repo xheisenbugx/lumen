@@ -82,6 +82,26 @@ local function run()
     vim.cmd.colorscheme("lumen")
   end)
 
+  check("invalid palette overrides / accent are ignored with a warning", function()
+    local config = require("lumen.config")
+    local notify, warned = vim.notify, nil
+    vim.notify = function(msg)
+      warned = msg
+    end
+    config.colors, config.accent = { night = { bg = "black", red = "#ff0000" } }, "pinkish"
+    local ok, err = pcall(vim.cmd.colorscheme, "lumen")
+    wait(200, function()
+      return warned ~= nil
+    end)
+    vim.notify, config.colors, config.accent = notify, {}, "amber"
+    local normal, error_fg = vim.api.nvim_get_hl(0, { name = "Normal" }).bg, vim.api.nvim_get_hl(0, { name = "Error" })
+    vim.cmd.colorscheme("lumen")
+    assert(ok, "colorscheme failed: " .. tostring(err))
+    assert(normal == tonumber("10131a", 16), "invalid bg not ignored")
+    assert(next(error_fg), "valid override broke a group")
+    assert(warned and warned:find("colors.night.bg", 1, true) and warned:find("pinkish", 1, true), tostring(warned))
+  end)
+
   check("background toggle under lumen-dawn / lumen-night switches variant", function()
     -- Neovim unloads a scheme that sets 'background' back (colors_name = nil, default colors)
     for _, case in ipairs({ { "lumen-dawn", "dark", "10131a" }, { "lumen-night", "light", "f7f3eb" } }) do

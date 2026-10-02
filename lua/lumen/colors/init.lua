@@ -26,11 +26,32 @@ function M.palette(variant)
   variant = variant or (vim.o.background == "light" and "dawn" or "night")
   local config = require("lumen.config")
   local p = vim.deepcopy(require("lumen.colors.palettes")[variant])
+  local function hex(c)
+    return type(c) == "string" and c:match("^#%x%x%x%x%x%x$") ~= nil
+  end
+  local bad = {}
   -- user palette overrides: colors = { night = { bg = "#000000" }, dawn = { ... } }
-  p = vim.tbl_extend("force", p, (config.colors or {})[variant] or {})
+  -- (a non-hex value would make blend() throw and the whole colorscheme fail to load)
+  for key, c in pairs((config.colors or {})[variant] or {}) do
+    if hex(c) then
+      p[key] = c
+    else
+      bad[#bad + 1] = ("colors.%s.%s = %s"):format(variant, key, vim.inspect(c))
+    end
+  end
   -- the "glow" used for focus across the UI; any palette key or a hex color
-  local accent = type(config.accent) == "string" and config.accent or "amber"
-  p.accent = p[accent] or (accent:match("^#%x%x%x%x%x%x$") and accent) or p.amber
+  local accent = config.accent or "amber"
+  p.accent = (type(accent) == "string" and (p[accent] or (hex(accent) and accent))) or nil
+  if not p.accent then
+    bad[#bad + 1] = "accent = " .. vim.inspect(accent)
+    p.accent = p.amber
+  end
+  if #bad > 0 then
+    vim.schedule(function()
+      local msg = "Lumen: ignoring invalid colors (use a palette name or #rrggbb):\n" .. table.concat(bad, "\n")
+      vim.notify(msg, vim.log.levels.WARN)
+    end)
+  end
   return p, variant
 end
 
