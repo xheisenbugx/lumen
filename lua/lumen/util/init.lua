@@ -82,8 +82,8 @@ end
 ---@param opts? table
 function M.pick(source, opts)
   return function()
-    opts = vim.tbl_extend("force", { cwd = M.root() }, opts or {})
-    Snacks.picker.pick(source, opts)
+    -- a fresh table per call: the root depends on the buffer you're in *now*
+    Snacks.picker.pick(source, vim.tbl_extend("force", { cwd = M.root() }, opts or {}))
   end
 end
 

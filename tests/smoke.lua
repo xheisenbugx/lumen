@@ -725,6 +725,30 @@ local function run()
     assert(res.ok and res.ft ~= "help", "q failed: " .. vim.inspect(res) .. (out.stderr or ""))
   end)
 
+  check("Lumen.pick follows the current buffer's root", function()
+    -- regression: the first call saved its cwd into the shared opts, freezing the root forever
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    vim.fn.writefile({}, dir .. "/.root")
+    local pick, cwds = Snacks.picker.pick, {}
+    Snacks.picker.pick = function(_, opts)
+      cwds[#cwds + 1] = opts.cwd
+    end
+    local open = Lumen.pick("files")
+    local ok, err = pcall(function()
+      vim.cmd.edit("lua/lumen/init.lua")
+      open()
+      vim.cmd.edit(dir .. "/x.txt")
+      open()
+    end)
+    Snacks.picker.pick = pick
+    vim.cmd("bwipeout! " .. vim.fn.fnameescape(dir .. "/x.txt"))
+    vim.fn.delete(dir, "rf")
+    assert(ok, err)
+    local tail = vim.fn.fnamemodify(dir, ":t")
+    assert(cwds[2] and cwds[2]:sub(-#tail) == tail and cwds[1] ~= cwds[2], "root frozen: " .. vim.inspect(cwds))
+  end)
+
   check("LSP keymaps only for capabilities the client has", function()
     -- regression: K was mapped to LSP hover for any client, even one without hover (copilot),
     -- hiding 'keywordprg' behind a "method not supported" error
