@@ -168,7 +168,7 @@ end
 
 local mc_ns = vim.api.nvim_create_namespace("nvim.multicursor")
 local mc = { buf = -1, at = 0, n = 0 }
-local search = { key = nil, res = {} }
+local search = { key = nil, base = nil, at = 0, res = {}, timer = assert(vim.uv.new_timer()) }
 
 local function extras()
   local out = {}
@@ -201,13 +201,22 @@ local function extras()
     out[#out + 1] = hl("LumenStlRecording", icons.misc.recording .. "@" .. reg)
   end
   if vim.v.hlsearch == 1 then
-    -- searchcount() rescans the buffer (~1.5ms on 40k lines): reuse it until something changes
+    -- searchcount() rescans the buffer (~1.5ms on 40k lines): reuse it until something changes,
+    -- and when only the cursor moved, at most every 100ms (holding j/k with a search active),
+    -- with one trailing redraw so the count catches up once the cursor settles
     local cur = vim.api.nvim_win_get_cursor(0)
-    local key =
-      table.concat({ vim.fn.getreg("/"), vim.api.nvim_get_current_buf(), vim.b.changedtick, cur[1], cur[2] }, "\0")
+    local base = table.concat({ vim.fn.getreg("/"), vim.api.nvim_get_current_buf(), vim.b.changedtick }, "\0")
+    local key = base .. "\0" .. cur[1] .. "\0" .. cur[2]
     if search.key ~= key then
-      local ok, res = pcall(vim.fn.searchcount, { maxcount = 999, timeout = 20 })
-      search.key, search.res = key, ok and res or {}
+      local now = vim.uv.now()
+      if search.base == base and now - search.at < 100 then
+        if not search.timer:is_active() then
+          search.timer:start(100, 0, vim.schedule_wrap(vim.cmd.redrawstatus))
+        end
+      else
+        local ok, res = pcall(vim.fn.searchcount, { maxcount = 999, timeout = 20 })
+        search.key, search.base, search.at, search.res = key, base, now, ok and res or {}
+      end
     end
     local sc = search.res
     if sc.total and sc.total > 0 then
