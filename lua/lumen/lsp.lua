@@ -19,21 +19,32 @@ local function on_attach(client, buf)
     vim.keymap.set(mode or "n", lhs, rhs, { buffer = buf, desc = desc, silent = true, nowait = true })
   end
 
+  -- Snacks' pickers when available, the built-in lists otherwise
+  local function pick(source, fallback)
+    return function()
+      if _G.Snacks then
+        return Snacks.picker[source]()
+      end
+      fallback()
+    end
+  end
+  local lb = vim.lsp.buf
+
   -- stylua: ignore start
-  map("gd", function() Snacks.picker.lsp_definitions() end, "Goto definition", nil, "textDocument/definition")
-  map("gD", function() Snacks.picker.lsp_declarations() end, "Goto declaration", nil, "textDocument/declaration")
-  map("gr", function() Snacks.picker.lsp_references() end, "References", nil, "textDocument/references")
-  map("gI", function() Snacks.picker.lsp_implementations() end, "Goto implementation", nil, "textDocument/implementation")
-  map("gy", function() Snacks.picker.lsp_type_definitions() end, "Goto type definition", nil, "textDocument/typeDefinition")
-  map("gai", function() Snacks.picker.lsp_incoming_calls() end, "Incoming calls", nil, "callHierarchy/incomingCalls")
-  map("gao", function() Snacks.picker.lsp_outgoing_calls() end, "Outgoing calls", nil, "callHierarchy/outgoingCalls")
+  map("gd", pick("lsp_definitions", lb.definition), "Goto definition", nil, "textDocument/definition")
+  map("gD", pick("lsp_declarations", lb.declaration), "Goto declaration", nil, "textDocument/declaration")
+  map("gr", pick("lsp_references", lb.references), "References", nil, "textDocument/references")
+  map("gI", pick("lsp_implementations", lb.implementation), "Goto implementation", nil, "textDocument/implementation")
+  map("gy", pick("lsp_type_definitions", lb.type_definition), "Goto type definition", nil, "textDocument/typeDefinition")
+  map("gai", pick("lsp_incoming_calls", lb.incoming_calls), "Incoming calls", nil, "callHierarchy/incomingCalls")
+  map("gao", pick("lsp_outgoing_calls", lb.outgoing_calls), "Outgoing calls", nil, "callHierarchy/outgoingCalls")
   map("K", function() vim.lsp.buf.hover() end, "Hover")
   map("gK", function() vim.lsp.buf.signature_help() end, "Signature help", nil, "textDocument/signatureHelp")
   map("<c-k>", function() vim.lsp.buf.signature_help() end, "Signature help", "i", "textDocument/signatureHelp")
   map("<leader>ca", vim.lsp.buf.code_action, "Code action", { "n", "x" }, "textDocument/codeAction")
   map("<leader>cr", vim.lsp.buf.rename, "Rename symbol", nil, "textDocument/rename")
   map("<leader>cc", vim.lsp.codelens.run, "Run codelens", { "n", "x" }, "textDocument/codeLens")
-  map("<leader>cl", function() Snacks.picker.lsp_config() end, "LSP info")
+  map("<leader>cl", pick("lsp_config", function() vim.cmd("checkhealth vim.lsp") end), "LSP info")
   map("<leader>cA", function()
     vim.lsp.buf.code_action({ apply = true, context = { only = { "source" }, diagnostics = {} } })
   end, "Source action", nil, "textDocument/codeAction")

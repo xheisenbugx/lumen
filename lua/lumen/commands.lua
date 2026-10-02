@@ -60,13 +60,19 @@ local actions = {
   config = {
     desc = "Edit your config",
     run = function()
-      Snacks.picker.files({ cwd = vim.fn.stdpath("config") })
+      if _G.Snacks then
+        return Snacks.picker.files({ cwd = vim.fn.stdpath("config") })
+      end
+      vim.cmd.edit(vim.fn.stdpath("config") .. "/lua/config/lumen.lua")
     end,
   },
   keys = {
     desc = "Search all keymaps",
     run = function()
-      Snacks.picker.keymaps()
+      if _G.Snacks then
+        return Snacks.picker.keymaps()
+      end
+      vim.cmd("map")
     end,
   },
 }

@@ -44,10 +44,21 @@ map("n", "]b", "<cmd>bnext<cr>", { desc = "Next buffer" })
 map("n", "<leader>bb", "<cmd>e #<cr>", { desc = "Alternate buffer" })
 map("n", "<leader>`", "<cmd>e #<cr>", { desc = "Alternate buffer" })
 map("n", "<leader>bd", function()
-  Snacks.bufdelete()
+  if _G.Snacks then
+    return Snacks.bufdelete()
+  end
+  vim.cmd.bdelete()
 end, { desc = "Delete buffer" })
 map("n", "<leader>bo", function()
-  Snacks.bufdelete.other()
+  if _G.Snacks then
+    return Snacks.bufdelete.other()
+  end
+  local cur = vim.api.nvim_get_current_buf()
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if b ~= cur and vim.bo[b].buflisted then
+      pcall(vim.cmd.bdelete, b)
+    end
+  end
 end, { desc = "Delete other buffers" })
 map("n", "<leader>bD", "<cmd>:bd<cr>", { desc = "Delete buffer & window" })
 
@@ -125,47 +136,57 @@ map("n", "<leader>uv", function()
 end, { desc = "Cycle diagnostics display" })
 
 -- ── toggles (<leader>u) ──────────────────────────────────────
-Snacks.toggle.option("spell", { name = "Spelling" }):map("<leader>us")
-Snacks.toggle.option("wrap", { name = "Wrap" }):map("<leader>uw")
-Snacks.toggle.option("relativenumber", { name = "Relative number" }):map("<leader>uL")
-Snacks.toggle.line_number():map("<leader>ul")
-Snacks.toggle.diagnostics():map("<leader>ud")
-Snacks.toggle
-  .option("conceallevel", { off = 0, on = vim.o.conceallevel > 0 and vim.o.conceallevel or 2, name = "Conceal" })
-  :map("<leader>uc")
-Snacks.toggle.option("background", { off = "light", on = "dark", name = "Dark background" }):map("<leader>ub")
-Snacks.toggle.treesitter():map("<leader>uT")
-Snacks.toggle.inlay_hints():map("<leader>uh")
-Snacks.toggle.indent():map("<leader>ug")
-Snacks.toggle.dim():map("<leader>uD")
-Snacks.toggle.zen():map("<leader>uz")
-Snacks.toggle.zoom():map("<leader>uZ")
-Snacks.toggle.scroll():map("<leader>uS")
-Snacks.toggle({
-  name = "Format on save (global)",
-  get = function()
-    return vim.g.lumen_autoformat ~= false
-  end,
-  set = function(state)
-    vim.g.lumen_autoformat = state
-    vim.b.lumen_autoformat = nil
-  end,
-}):map("<leader>uf")
-Snacks.toggle({
-  name = "Format on save (buffer)",
-  get = function()
-    local b = vim.b.lumen_autoformat
-    if b == nil then
+-- (snacks.nvim provides them; Lumen still starts if you disable it)
+if _G.Snacks then
+  Snacks.toggle.option("spell", { name = "Spelling" }):map("<leader>us")
+  Snacks.toggle.option("wrap", { name = "Wrap" }):map("<leader>uw")
+  Snacks.toggle.option("relativenumber", { name = "Relative number" }):map("<leader>uL")
+  Snacks.toggle.line_number():map("<leader>ul")
+  Snacks.toggle.diagnostics():map("<leader>ud")
+  Snacks.toggle
+    .option("conceallevel", { off = 0, on = vim.o.conceallevel > 0 and vim.o.conceallevel or 2, name = "Conceal" })
+    :map("<leader>uc")
+  Snacks.toggle.option("background", { off = "light", on = "dark", name = "Dark background" }):map("<leader>ub")
+  Snacks.toggle.treesitter():map("<leader>uT")
+  Snacks.toggle.inlay_hints():map("<leader>uh")
+  Snacks.toggle.indent():map("<leader>ug")
+  Snacks.toggle.dim():map("<leader>uD")
+  Snacks.toggle.zen():map("<leader>uz")
+  Snacks.toggle.zoom():map("<leader>uZ")
+  Snacks.toggle.scroll():map("<leader>uS")
+  Snacks.toggle({
+    name = "Format on save (global)",
+    get = function()
       return vim.g.lumen_autoformat ~= false
-    end
-    return b
-  end,
-  set = function(state)
-    vim.b.lumen_autoformat = state
-  end,
-}):map("<leader>uF")
+    end,
+    set = function(state)
+      vim.g.lumen_autoformat = state
+      vim.b.lumen_autoformat = nil
+    end,
+  }):map("<leader>uf")
+  Snacks.toggle({
+    name = "Format on save (buffer)",
+    get = function()
+      local b = vim.b.lumen_autoformat
+      if b == nil then
+        return vim.g.lumen_autoformat ~= false
+      end
+      return b
+    end,
+    set = function(state)
+      vim.b.lumen_autoformat = state
+    end,
+  }):map("<leader>uF")
+end
 map("n", "<leader>uC", function()
-  Snacks.picker.colorschemes()
+  if _G.Snacks then
+    return Snacks.picker.colorschemes()
+  end
+  vim.ui.select(vim.fn.getcompletion("", "color"), { prompt = "Colorscheme" }, function(name)
+    if name then
+      vim.cmd.colorscheme(name)
+    end
+  end)
 end, { desc = "Colorschemes" })
 map("n", "<leader>ui", vim.show_pos, { desc = "Inspect position" })
 map("n", "<leader>uI", function()
@@ -174,17 +195,26 @@ map("n", "<leader>uI", function()
 end, { desc = "Inspect tree" })
 
 -- ── terminal ─────────────────────────────────────────────────
+---@param cwd? string
+local function terminal(cwd)
+  if _G.Snacks then
+    return Snacks.terminal(nil, { cwd = cwd })
+  end
+  vim.cmd("botright new")
+  vim.fn.jobstart(vim.o.shell, { term = true, cwd = cwd })
+  vim.cmd.startinsert()
+end
 map({ "n", "t" }, "<C-/>", function()
-  Snacks.terminal(nil, { cwd = Lumen.root() })
+  terminal(Lumen.root())
 end, { desc = "Terminal (root)" })
 map({ "n", "t" }, "<C-_>", function()
-  Snacks.terminal(nil, { cwd = Lumen.root() })
+  terminal(Lumen.root())
 end, { desc = "which_key_ignore" })
 map("n", "<leader>ft", function()
-  Snacks.terminal(nil, { cwd = Lumen.root() })
+  terminal(Lumen.root())
 end, { desc = "Terminal (root)" })
 map("n", "<leader>fT", function()
-  Snacks.terminal()
+  terminal()
 end, { desc = "Terminal (cwd)" })
 
 -- ── quit / misc ──────────────────────────────────────────────

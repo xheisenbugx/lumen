@@ -56,6 +56,9 @@ return {
         map("n", "<leader>ghd", gs.diffthis, "Diff this")
         map({ "o", "x" }, "ih", ":<C-U>Gitsigns select_hunk<CR>", "Hunk")
         -- stylua: ignore end
+        if not _G.Snacks then
+          return
+        end
         Snacks.toggle({
           name = "Git signs",
           get = function()

@@ -133,6 +133,9 @@ return {
     },
     config = function(_, opts)
       require("mini.pairs").setup(opts)
+      if not _G.Snacks then
+        return
+      end
       Snacks.toggle({
         name = "Auto pairs",
         get = function()

@@ -18,6 +18,29 @@ local function wait(ms, cond)
   return vim.wait(ms, cond, 50)
 end
 
+--- Runs `probe` (Lua source; it must print one JSON object and quit) in a child Neovim using a
+--- throwaway copy of the sandbox config with `files` added (e.g. `lua/plugins/x.lua`), so the
+--- running suite never sees those specs. Returns the decoded JSON plus the raw result.
+---@param probe string
+---@param files? table<string, string> path (relative to the config dir) → contents
+---@param args? string[] extra arguments for the child
+local function child(probe, files, args)
+  local cfg = vim.fn.stdpath("config")
+  local root = vim.fn.tempname()
+  local dir = root .. "/" .. vim.fn.fnamemodify(cfg, ":t")
+  vim.fn.mkdir(dir, "p")
+  vim.fn.system({ "cp", "-R", cfg .. "/.", dir })
+  for path, text in pairs(files or {}) do
+    vim.fn.mkdir(vim.fn.fnamemodify(dir .. "/" .. path, ":h"), "p")
+    vim.fn.writefile(vim.split(text, "\n"), dir .. "/" .. path)
+  end
+  local cmd = { vim.v.progpath, "--headless", "-c", "lua " .. probe:gsub("\n", " ") }
+  vim.list_extend(cmd, args or {})
+  local out = vim.system(cmd, { text = true, env = { XDG_CONFIG_HOME = root } }):wait(60000 * SLOW)
+  vim.fn.delete(root, "rf")
+  return vim.json.decode((out.stdout or ""):match("{.*}") or "{}"), out
+end
+
 local function run()
   io.stdout:write("\nLumen smoke test\n")
 
@@ -568,6 +591,34 @@ local function run()
     for _, b in ipairs(bars) do
       assert(b.diff and b.winbar == "", vim.inspect(bars))
     end
+  end)
+
+  check("Lumen starts and edits with snacks.nvim disabled", function()
+    -- regression: keymaps.lua called Snacks.toggle at setup, so the lumen config aborted
+    local probe = [[
+      vim.defer_fn(function()
+        vim.cmd.edit("lua/lumen/icons.lua")
+        vim.wait(SLOW_MS, function()
+          return #vim.lsp.get_clients({ bufnr = 0, name = "lua_ls" }) > 0
+        end, 100)
+        local gd = vim.fn.maparg("gd", "n", false, true)
+        io.stdout:write(vim.json.encode({
+          lumen = vim.fn.exists(":Lumen") == 2,
+          snacks = _G.Snacks ~= nil,
+          ft = vim.bo.filetype,
+          gd = gd.buffer == 1,
+          errmsg = vim.v.errmsg,
+        }) .. "\n")
+        vim.cmd("qa!")
+      end, 300)
+    ]]
+    probe = probe:gsub("SLOW_MS", tostring(20000 * SLOW))
+    local res, out =
+      child(probe, { ["lua/plugins/zz_no_snacks.lua"] = 'return { { "folke/snacks.nvim", enabled = false } }' })
+    assert(res.snacks == false, "snacks still loaded: " .. vim.inspect(res) .. (out.stderr or ""))
+    assert(res.lumen, ":Lumen missing, setup aborted: " .. vim.inspect(res) .. (out.stderr or ""))
+    assert(res.ft == "lua" and res.gd, "no filetype / LSP keymaps: " .. vim.inspect(res))
+    assert(res.errmsg == "", res.errmsg)
   end)
 
   check("every pack reference resolves (parsers, servers, mason, formatters, linters)", function()

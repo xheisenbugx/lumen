@@ -19,6 +19,9 @@ return {
       },
       config = function(_, opts)
         require("render-markdown").setup(opts)
+        if not _G.Snacks then
+          return
+        end
         Snacks.toggle({
           name = "Render markdown",
           get = function()
