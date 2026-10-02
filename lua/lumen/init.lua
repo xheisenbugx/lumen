@@ -153,7 +153,8 @@ end
 
 ---@param fn fun()
 function M.after_snacks(fn)
-  if _G.Snacks then
+  -- run now if snacks is loaded, or if the user disabled it (Lumen then falls back to built-ins)
+  if _G.Snacks or not require("lazy.core.config").plugins["snacks.nvim"] then
     return fn()
   end
   Lumen.on_load("snacks.nvim", fn)
