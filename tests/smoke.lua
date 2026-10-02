@@ -1087,6 +1087,133 @@ local function run()
     assert(spec.opts.keymaps.editor.execute_buffer == "<leader>Dx", vim.inspect(spec.opts))
   end)
 
+  check("stable channel: vetted versions pin known plugins, your extras stay on latest", function()
+    local up = require("lumen.update")
+    local merged, pinned, extras = up.merge_lock({
+      ["flash.nvim"] = { branch = "main", commit = "new" },
+      ["my-plugin"] = { branch = "main", commit = "mine" },
+      lumen = { branch = "main", commit = "x" },
+    }, {
+      ["flash.nvim"] = { branch = "main", commit = "vetted" },
+      ["not-installed"] = { branch = "main", commit = "y" },
+    })
+    assert(merged["flash.nvim"].commit == "vetted", vim.inspect(merged))
+    assert(merged["my-plugin"].commit == "mine" and merged["not-installed"] == nil, vim.inspect(merged))
+    assert(
+      vim.deep_equal(pinned, { "flash.nvim" }) and vim.deep_equal(extras, { "my-plugin" }),
+      vim.inspect({ pinned, extras })
+    )
+
+    -- the whole flow, with lazy.nvim's restore/update stubbed (no network) and the real lockfile restored after
+    local lockfile = vim.fn.stdpath("config") .. "/lazy-lock.json"
+    local saved = vim.fn.filereadable(lockfile) == 1 and vim.fn.readfile(lockfile) or nil
+    local lazy = require("lazy.manage")
+    local calls, orig = {}, { restore = lazy.restore, update = lazy.update, vetted = up.vetted, verify = up.verify }
+    -- the restart prompt is a blocking vim.ui.select in headless runs
+    local packs = require("lumen.packs")
+    local prompt = packs.prompt_restart
+    packs.prompt_restart = function() end
+    local ok, err = pcall(function()
+      local current = vim.json.decode(table.concat(vim.fn.readfile(lockfile), "\n"))
+      local some = next(current)
+      lazy.restore = function(opts)
+        calls.restore = opts.plugins
+      end
+      lazy.update = function(opts)
+        calls.update = calls.update or {}
+        vim.list_extend(calls.update, opts.plugins or {})
+      end
+      up.vetted = function()
+        return { [some] = { branch = current[some].branch, commit = "0000000000000000000000000000000000000000" } }
+      end
+      up.verify = function(cb)
+        calls.verified = true
+        cb(true, {})
+      end
+      require("lumen.config").update_channel = "stable"
+      up.update()
+      assert(
+        wait(5000 * SLOW, function()
+          return calls.verified
+        end),
+        "the update never reached verification: " .. vim.inspect(calls)
+      )
+      local written = vim.json.decode(table.concat(vim.fn.readfile(lockfile), "\n"))
+      assert(written[some].commit == "0000000000000000000000000000000000000000", "vetted commit not written")
+      assert(
+        vim.deep_equal(calls.restore, { some }),
+        "restore should pin exactly the vetted plugins: " .. vim.inspect(calls)
+      )
+      assert(not vim.tbl_contains(calls.update or {}, some), "a vetted plugin was also updated to latest")
+    end)
+    vim.wait(200)
+    lazy.restore, lazy.update, up.vetted, up.verify = orig.restore, orig.update, orig.vetted, orig.verify
+    packs.prompt_restart = prompt
+    if saved then
+      vim.fn.writefile(saved, lockfile)
+    end
+    for _, snap in ipairs(up.snapshots()) do
+      os.remove(snap.path)
+    end
+    assert(ok, err)
+  end)
+
+  check("rollback really moves plugins (real lazy.nvim, in the same session as an update)", function()
+    -- regression: lazy caches the lockfile and its load() is a no-op once run, and an async restore
+    -- recorded the current commits before checking out, so rollbacks silently did nothing
+    local up = require("lumen.update")
+    local dir = require("lazy.core.config").plugins["flash.nvim"].dir
+    local function head()
+      return vim.trim(vim.fn.system({ "git", "-C", dir, "rev-parse", "HEAD" }))
+    end
+    local lockfile = vim.fn.stdpath("config") .. "/lazy-lock.json"
+    local saved = vim.fn.readfile(lockfile)
+    local current = head()
+    local older = vim.trim(vim.fn.system({ "git", "-C", dir, "rev-parse", "HEAD~1" }))
+    local prompt = require("lumen.packs").prompt_restart
+    require("lumen.packs").prompt_restart = function() end
+    local ok, err = pcall(function()
+      local lock = vim.json.decode(table.concat(saved, "\n"))
+      lock["flash.nvim"].commit = older
+      local tmp = vim.fn.tempname()
+      vim.fn.writefile({ vim.json.encode(lock) }, tmp)
+      up.restore(tmp)
+      assert(head() == older, ("restore did not move flash.nvim: %s, wanted %s"):format(head(), older))
+      local back = vim.fn.tempname()
+      vim.fn.writefile(saved, back)
+      up.restore(back)
+      assert(head() == current, ("rollback did not return flash.nvim: %s, wanted %s"):format(head(), current))
+    end)
+    vim.wait(200) -- restore() schedules its restart prompt: let it hit the stub
+    require("lumen.packs").prompt_restart = prompt
+    vim.fn.writefile(saved, lockfile)
+    if head() ~= current then
+      require("lazy.manage").restore({ plugins = { "flash.nvim" }, wait = true, show = false })
+    end
+    assert(ok, err)
+  end)
+
+  check("doctor: deep report, JSON export and one-key fixes", function()
+    vim.cmd.edit("lua/lumen/init.lua")
+    wait(20000 * SLOW, function()
+      return #vim.lsp.get_clients({ bufnr = 0, name = "lua_ls" }) > 0
+    end)
+    local why = require("lumen.why")
+    local text = table.concat(why.report(0, { deep = true }), "\n")
+    assert(text:find("## Environment", 1, true) and text:find("update channel", 1, true), text)
+    assert(text:find("· command `lua-language-server", 1, true), "no binary details:\n" .. text)
+    assert(text:find("· supports: ", 1, true), "no capabilities:\n" .. text)
+    local data = vim.json.decode(why.json(0))
+    assert(data.filetype == "lua" and #data.report > 10 and data.attached[1], vim.inspect(data))
+    -- the fix for a status line is the → line under it; a line without one has no fix
+    local lines = { "✗ `x` not installed", "   → `:MasonInstall x`", "✓ fine", "! off", "   → `<leader>uT`" }
+    assert(why.fix_at(lines, 1) == ":MasonInstall x", tostring(why.fix_at(lines, 1)))
+    assert(why.fix_at(lines, 2) == ":MasonInstall x")
+    assert(why.fix_at(lines, 3) == nil)
+    assert(why.fix_at(lines, 4) == "<leader>uT")
+    assert(vim.fn.maparg("<leader>cD", "n") ~= "", "<leader>cD not mapped")
+  end)
+
   check(":Lumen command + health", function()
     assert(vim.fn.exists(":Lumen") == 2)
     vim.cmd("checkhealth lumen")
