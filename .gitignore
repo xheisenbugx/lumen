@@ -3,3 +3,5 @@
 # lockfiles belong to the user config (starter), not to the plugin
 lazy-lock.json
 .DS_Store
+# agent worktrees
+.claude/
