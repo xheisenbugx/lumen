@@ -85,19 +85,30 @@ function M.load()
   merge(options, user_module("config.lumen"))
 end
 
---- runtime settings passed as `opts` on the lumen spec (packs must live in lua/config/lumen.lua:
---- they are needed while lazy.nvim builds the plugin list, before any opts exist)
+-- settings needed while lazy.nvim builds the plugin list / before plugins map keys, i.e. before
+-- any spec opts exist: they only work from lua/config/lumen.lua
+local early = { "packs", "leader", "localleader", "ui2" }
+
+--- runtime settings passed as `opts` on the lumen spec
 ---@param opts table
 function M.merge(opts)
-  if opts.packs then
+  local ignored = vim.tbl_filter(function(k)
+    return opts[k] ~= nil
+  end, early)
+  if #ignored > 0 then
     vim.schedule(function()
       vim.notify(
-        "Lumen: `packs` in the spec opts is ignored — set it in lua/config/lumen.lua or use :Lumen packs",
+        ("Lumen: `%s` in the spec opts is ignored — set it in lua/config/lumen.lua%s"):format(
+          table.concat(ignored, "`, `"),
+          vim.tbl_contains(ignored, "packs") and " or use :Lumen packs" or ""
+        ),
         vim.log.levels.WARN
       )
     end)
     opts = vim.deepcopy(opts)
-    opts.packs = nil
+    for _, k in ipairs(ignored) do
+      opts[k] = nil
+    end
   end
   merge(options, opts)
 end

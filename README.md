@@ -297,9 +297,8 @@ The source of truth is [`lua/lumen/config.lua`](lua/lumen/config.lua).
 
 </details>
 
-Most settings can also be passed as spec opts, from any file in `lua/plugins/`. The exceptions are
-`packs`, `leader`, `localleader`, `format_on_save`, `ui2` and `smooth_scroll` (and `transparent`
-for Catppuccin): Lumen reads those before any opts exist, so set them in `lua/config/lumen.lua`.
+Settings other than `packs`, `leader`, `localleader` and `ui2` (needed before any plugin loads) can also be passed
+as spec opts, from any file in `lua/plugins/`:
 
 ```lua
 return {

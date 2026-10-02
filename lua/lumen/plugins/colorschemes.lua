@@ -7,30 +7,33 @@ return {
     name = "catppuccin",
     lazy = true,
     priority = 1000,
-    opts = {
-      -- "catppuccin" follows 'background': latte when light, mocha when dark.
-      -- Pick a flavour directly with catppuccin-latte / -frappe / -macchiato / -mocha.
-      flavour = "auto",
-      background = { light = "latte", dark = "mocha" },
-      transparent_background = require("lumen.config").transparent,
-      float = { transparent = false, solid = false },
-      term_colors = true,
-      -- detect installed plugins (blink, snacks, which-key, gitsigns, flash, mini, …)
-      auto_integrations = true,
-      integrations = {
-        blink_cmp = { style = "bordered" },
-        snacks = { enabled = true, indent_scope_color = "lavender" },
-        mini = { enabled = true },
-        native_lsp = {
-          enabled = true,
-          underlines = {
-            errors = { "undercurl" },
-            hints = { "undercurl" },
-            warnings = { "undercurl" },
-            information = { "undercurl" },
+    -- a function, so `transparent` from the lumen spec opts (merged after specs are read) applies
+    opts = function()
+      return {
+        -- "catppuccin" follows 'background': latte when light, mocha when dark.
+        -- Pick a flavour directly with catppuccin-latte / -frappe / -macchiato / -mocha.
+        flavour = "auto",
+        background = { light = "latte", dark = "mocha" },
+        transparent_background = require("lumen.config").transparent,
+        float = { transparent = false, solid = false },
+        term_colors = true,
+        -- detect installed plugins (blink, snacks, which-key, gitsigns, flash, mini, …)
+        auto_integrations = true,
+        integrations = {
+          blink_cmp = { style = "bordered" },
+          snacks = { enabled = true, indent_scope_color = "lavender" },
+          mini = { enabled = true },
+          native_lsp = {
+            enabled = true,
+            underlines = {
+              errors = { "undercurl" },
+              hints = { "undercurl" },
+              warnings = { "undercurl" },
+              information = { "undercurl" },
+            },
           },
         },
-      },
-    },
+      }
+    end,
   },
 }

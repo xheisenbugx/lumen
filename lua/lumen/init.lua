@@ -39,10 +39,42 @@ end
 function M.setup(opts)
   M.init()
   local config = require("lumen.config")
-  config.merge(opts or {})
+  opts = opts or {}
+  config.merge(opts)
+
+  -- settings read before the spec opts existed (options.lua, snacks' spec): apply them now
+  if opts.format_on_save ~= nil then
+    vim.g.lumen_autoformat = config.format_on_save
+  end
+  if opts.smooth_scroll ~= nil and _G.Snacks then
+    -- snacks enables scrolling on UIEnter, which comes after this
+    Snacks.config.scroll.enabled = config.smooth_scroll
+    if not config.smooth_scroll and Snacks.scroll.enabled then
+      Snacks.scroll.disable()
+    end
+  end
 
   -- keeps Lumen's statusline/tabline/winbar styled under any colorscheme
   require("lumen.colors.compat").setup()
+
+  -- lazy.nvim only loads a colorscheme plugin when no scheme of that name is on the rtp yet, but
+  -- Neovim 0.12+ bundles `catppuccin`: `:colorscheme catppuccin` would get the bundled one, without
+  -- the plugin or its options. Load the plugin that ships the scheme first, so it wins on the rtp.
+  vim.api.nvim_create_autocmd("ColorSchemePre", {
+    group = vim.api.nvim_create_augroup("lumen_colorscheme_plugins", { clear = true }),
+    callback = function(ev)
+      for _, plugin in pairs(require("lazy.core.config").plugins) do
+        if not plugin._.loaded and plugin.dir then
+          for _, ext in ipairs({ "lua", "vim" }) do
+            if vim.uv.fs_stat(plugin.dir .. "/colors/" .. ev.match .. "." .. ext) then
+              require("lazy").load({ plugins = { plugin.name } })
+              return
+            end
+          end
+        end
+      end
+    end,
+  })
 
   local ok = pcall(vim.cmd.colorscheme, config.colorscheme)
   if not ok then

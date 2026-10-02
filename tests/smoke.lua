@@ -621,6 +621,29 @@ local function run()
     assert(res.errmsg == "", res.errmsg)
   end)
 
+  check("lumen spec opts apply (format_on_save, transparent) + catppuccin is the plugin", function()
+    -- regressions: options.lua / the catppuccin spec read these before spec opts were merged,
+    -- and `colorscheme catppuccin` loaded Neovim's bundled scheme (0.12+) instead of the plugin
+    local probe = [[
+      vim.defer_fn(function()
+        io.stdout:write(vim.json.encode({
+          autoformat = vim.g.lumen_autoformat,
+          colors = vim.g.colors_name,
+          plugin = package.loaded.catppuccin ~= nil,
+          transparent = vim.api.nvim_get_hl(0, { name = "Normal" }).bg == nil,
+        }) .. "\n")
+        vim.cmd("qa!")
+      end, 300)
+    ]]
+    local res, out = child(probe, {
+      ["lua/plugins/zz_opts.lua"] = [[return { { "lumen", opts = {
+        format_on_save = false, transparent = true, colorscheme = "catppuccin" } } }]],
+    })
+    assert(res.autoformat == false, "format_on_save opt ignored: " .. vim.inspect(res) .. (out.stderr or ""))
+    assert(res.plugin and res.colors ~= "catppuccin", "bundled catppuccin loaded, not the plugin: " .. vim.inspect(res))
+    assert(res.transparent, "transparent opt ignored by catppuccin: " .. vim.inspect(res))
+  end)
+
   check("every pack reference resolves (parsers, servers, mason, formatters, linters)", function()
     require("lazy").load({ plugins = { "nvim-lspconfig", "conform.nvim", "nvim-lint", "mason-lspconfig.nvim" } })
     local parsers = require("nvim-treesitter.parsers")
