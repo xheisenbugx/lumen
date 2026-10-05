@@ -145,7 +145,7 @@
   },
   "org.nvim": {
     "branch": "main",
-    "commit": "bd190fadb7970cb9ca7809dc0cb76d886b74bbf6"
+    "commit": "ad5d9805b65a1e0c901030877f3bedd6b4278d48"
   },
   "persistence.nvim": {
     "branch": "main",
@@ -169,7 +169,7 @@
   },
   "sqmeow.nvim": {
     "branch": "master",
-    "commit": "b61539d8609a49501a9c094b149d0bef61c6bf6f"
+    "commit": "962e25a006e8d3ae49f48f315ae6be3185067ab6"
   },
   "todo-comments.nvim": {
     "branch": "main",
@@ -189,6 +189,6 @@
   },
   "yazi.nvim": {
     "branch": "main",
-    "commit": "4bc1d0ad67abe536b7944bf374bbdd806442a4ee"
+    "commit": "94fc7cdd159f898ba3b339c26b427483d4bfb77b"
   }
 }
