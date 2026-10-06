@@ -1,7 +1,7 @@
 {
   "SchemaStore.nvim": {
     "branch": "main",
-    "commit": "d93ef1e8365950420ea3e706e82caf65dc9ff968"
+    "commit": "83b0f1dc1ef1cc736bb4216654b1d173bcaf4ba6"
   },
   "blink.cmp": {
     "branch": "main",
@@ -29,7 +29,7 @@
   },
   "gitsigns.nvim": {
     "branch": "main",
-    "commit": "070a5d7b985546cc57e1fc61e5bc507fecac6045"
+    "commit": "851a051e2bd2caba97e23314c68d69f1b1cf5d19"
   },
   "grug-far.nvim": {
     "branch": "main",
@@ -117,7 +117,7 @@
   },
   "nvim-lspconfig": {
     "branch": "master",
-    "commit": "3e8d598d3b5f8338a41699c436e5fa11d2666cf0"
+    "commit": "910f0c4d46aa186641518395bc7e6fffb4d23baf"
   },
   "nvim-nio": {
     "branch": "master",
@@ -145,7 +145,7 @@
   },
   "org.nvim": {
     "branch": "main",
-    "commit": "ad5d9805b65a1e0c901030877f3bedd6b4278d48"
+    "commit": "7fb020ee8183432deb7f29dd6acfd431de3b1cf9"
   },
   "persistence.nvim": {
     "branch": "main",
@@ -189,6 +189,6 @@
   },
   "yazi.nvim": {
     "branch": "main",
-    "commit": "94fc7cdd159f898ba3b339c26b427483d4bfb77b"
+    "commit": "a6c50c54f480ab93fe749d88d86c3811d691d71f"
   }
 }
