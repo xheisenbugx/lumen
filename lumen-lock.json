@@ -1,7 +1,7 @@
 {
   "SchemaStore.nvim": {
     "branch": "main",
-    "commit": "ba1c08d07452528a430d319c53fba46e5884ef11"
+    "commit": "31626d9d0a95418bf12a8b3f0e8f9f42e73e1f35"
   },
   "blink.cmp": {
     "branch": "main",
@@ -113,11 +113,11 @@
   },
   "nvim-lint": {
     "branch": "master",
-    "commit": "3d55c8f67c6ae5c15e1042571e107c7a3d5c5f4e"
+    "commit": "f6230a5c06ba59e6059c14637f1dbe29a7978b9b"
   },
   "nvim-lspconfig": {
     "branch": "master",
-    "commit": "33497f4930d40f28a465d38a763a00fc6902c658"
+    "commit": "db68de3575fff9dd9bb78b34c8371759ed35fe34"
   },
   "nvim-nio": {
     "branch": "master",
@@ -145,7 +145,7 @@
   },
   "org.nvim": {
     "branch": "main",
-    "commit": "4f08e7bb4bba2fa6f4ca2773c6180e1cee67db64"
+    "commit": "8dc816d84b24c52290682c3c12e0b15c4c44de42"
   },
   "persistence.nvim": {
     "branch": "main",
@@ -189,6 +189,6 @@
   },
   "yazi.nvim": {
     "branch": "main",
-    "commit": "3a42d0554a15cc501a2ca7e5010349a55594abdc"
+    "commit": "28cf20b0f6ed4899863b86b684f571317f565442"
   }
 }
