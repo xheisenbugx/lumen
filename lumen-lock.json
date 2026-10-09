@@ -137,7 +137,7 @@
   },
   "octo.nvim": {
     "branch": "master",
-    "commit": "af2411604b51cb4a0f3e2de50b1b7cacc2581c48"
+    "commit": "5faf92a4112e7a0be23fe41045ed0a78ca209c50"
   },
   "oil.nvim": {
     "branch": "master",
@@ -145,7 +145,7 @@
   },
   "org.nvim": {
     "branch": "main",
-    "commit": "8dc816d84b24c52290682c3c12e0b15c4c44de42"
+    "commit": "b10ad453a3c9033aa35216886e9d4a3b9d912d95"
   },
   "persistence.nvim": {
     "branch": "main",
@@ -189,6 +189,6 @@
   },
   "yazi.nvim": {
     "branch": "main",
-    "commit": "28cf20b0f6ed4899863b86b684f571317f565442"
+    "commit": "ad984001db0216b8534d56d49323c91abb734b7e"
   }
 }
