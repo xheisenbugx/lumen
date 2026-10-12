@@ -19,7 +19,8 @@ Startup has two phases (see the header of `lua/lumen/init.lua`):
    name, so `lua/lumen/plugins/init.lua` is imported first and calls `init()` before any other spec
    is read. It:
    - loads settings: `lua/lumen/config.lua` merges its defaults with the user's `lua/config/lumen.lua`
-     (and the legacy `lua/user/config.lua`, read first);
+     (and the legacy `lua/user/config.lua`, read first), then the project's `.lumen.lua` if it is
+     trusted (`lua/lumen/project.lua`; it never prompts at startup);
    - applies `lumen.options`, then the user's `config.options` (and the legacy `user.options`);
    - registers the `LazyFile` event (`BufReadPost`, `BufNewFile`, `BufWritePre`), and
      `User LumenFileIdle`, fired one tick after the first file opens (after it is drawn) for
@@ -36,17 +37,19 @@ Module map (`lua/lumen/`):
 | --- | --- |
 | `init.lua` | `init()` / `setup()` entry points, `version` |
 | `config.lua` | defaults, merging user settings, proxy table (`require("lumen.config").accent`) |
+| `project.lua` | per-project `.lumen.lua`: found upward from the cwd, read only if Neovim's trust database trusts it; `:Lumen project` / `:Lumen trust` |
 | `options.lua` | vim options, leader, `winborder`, ui2 (feature-detected) |
 | `keymaps.lua` | core keymaps (plugin keymaps live in their specs) |
 | `autocmds.lua` | core autocmds, including the `ensure_filetype` safety net |
 | `commands.lua` | `:Lumen` subcommands: packs, health, profile, update, rollback, why, tasks, theme, config, keys |
 | `health.lua` | `:checkhealth lumen` |
-| `lsp.lua` | `vim.lsp.config`/`vim.lsp.enable`, on_attach keymaps, Mason auto-install |
+| `lsp.lua` | `vim.lsp.config`/`vim.lsp.enable` (`add()`, also used by packs enabled at runtime), on_attach keymaps, Mason auto-install, `$MASON/` expansion |
+| `treesitter.lua` | parser attach / background install helpers shared by the nvim-treesitter spec and runtime packs |
 | `diagnostics.lua` | diagnostic display modes `text` / `lines` / `signs` and cycling between them |
-| `packs.lua` + `packs/*.lua` | language packs, their state file, suggestions and the picker |
-| `tasks.lua` | task discovery (npm, make, cargo, go…), terminal and background runs, quickfix |
+| `packs.lua` + `packs/*.lua` | language packs, their state file, `extends`, `requires`, applying packs at runtime, suggestions and the picker |
+| `tasks.lua` | task discovery (npm, make, cargo, go, `.vscode/tasks.json`…), terminal and background runs, quickfix, watch mode |
 | `why.lua` | `:Lumen why` / `:Lumen doctor` (deep: binaries, Mason, root trace, LSP log, JSON); `<CR>` runs a line's fix |
-| `update.lua` | `:Lumen update` (snapshot, stable/latest channel, headless verify) and `:Lumen rollback` |
+| `update.lua` | `:Lumen update` (snapshot, stable/latest channel, parser sync, headless verify), `:Lumen rollback`, `:Lumen news` (NEWS.md) |
 | `icons.lua` | shared icons |
 | `colors/palettes.lua` | night/dawn palettes |
 | `colors/theme.lua` | highlight group definitions |
@@ -61,6 +64,9 @@ Module map (`lua/lumen/`):
 Other top-level pieces:
 
 - `colors/lumen.lua`, `colors/lumen-night.lua`, `colors/lumen-dawn.lua` are the colorscheme entry points.
+- `doc/lumen.txt` is `:help lumen` (a smoke test checks every tag and `|link|` resolves). `NEWS.md` has one
+  `## <version>` section per release; `:Lumen update` shows the sections newer than the running version.
+  Bump `M.version` in `lua/lumen/init.lua` and add a NEWS section for user-facing changes.
 - `starter/` is the template for a user's config dir: `init.lua` (loads `{ "xheisenbugx/lumen", name = "lumen",
   import = "lumen.plugins" }`), `lua/config/lumen.lua` (settings) and `lua/plugins/example.lua`.
 - `install.sh` copies `starter/` into `~/.config/<appname>` (backing up whatever is there). It works from a
@@ -76,7 +82,10 @@ Other top-level pieces:
 
 A pack is a **declarative data table** in `lua/lumen/packs/<name>.lua` (type `lumen.Pack`, defined in
 `lua/lumen/packs.lua`). Fields: `desc`, `ft`, `parsers`, `servers`, `tools`, `formatters`,
-`formatter_opts`, `linters`, `plugins`, `setup`.
+`formatter_opts`, `linters`, `plugins`, `setup`, `requires` (binaries Mason can't install; a nested list
+means "any of"), `extends` (packs enabled along with it; `packs.ordered()` puts them first, so the
+extending pack's lists win the lazy.nvim merge). Server strings may start with `$MASON/` (Mason's
+install root, resolved by `lsp.lua`), so packs never hardcode `stdpath("data") .. "/mason"`.
 
 `packs.specs()`, which `lua/lumen/plugins/packs.lua` returns, turns each enabled pack into lazy.nvim
 spec fragments that **extend the core specs**: parsers go to nvim-treesitter `ensure_installed`,
@@ -93,7 +102,12 @@ linters to nvim-lint, and `plugins` are appended as-is. `setup()` runs at spec t
   while specs are built, before any `opts` exist.
 - Discovery (`packs.available()`) globs the plugin's **own directory** (via `debug.getinfo`) plus the
   user's `stdpath("config")/lua/lumen/packs/*.lua`. It does not use the runtimepath, because Lumen
-  isn't on the rtp yet while lazy imports specs.
+  isn't on the rtp yet while lazy imports specs. The two globs cost ~0.3 ms, so keep `available()` /
+  `exists()` off the startup path (`enabled()` uses a quiet `require` instead).
+- **Packs apply at runtime** (`packs.toggle()` → `changed()` → `apply()`): servers through
+  `lsp.add()`, parsers through `lumen.treesitter`, tools through Mason, formatters/linters straight
+  into conform / nvim-lint (only filetypes nobody configured yet). A pack with `plugins` can't be
+  applied live (lazy.nvim builds its plugin list once): it, and any disable, asks for a restart.
 
 **Adding a pack:** copy a small pack such as `packs/go.lua` or `packs/rust.lua`, fill in only the
 fields you need, and run `./scripts/test.sh`. **Every name must actually exist:** treesitter parser
@@ -109,10 +123,17 @@ package names in `tools`, conform formatter names and nvim-lint linter names. Th
   `bash scripts/test.sh` also works), never with `sh` or `zsh`, and don't source `scripts/env.sh`
   from zsh: it relies on `BASH_SOURCE`. The sandbox defaults to `.tests/` (gitignored). Set `LUMEN_TEST_DIR=/some/dir` to put
   it elsewhere. The first run installs every plugin, parser and server, so it is slow.
-- `./scripts/bench.sh [runs]` prints the median startup time (default 10 runs) for an empty start and for opening a file.
+- The checks live in `tests/smoke/<area>.lua` (theme, ui, packs, tasks, why, startup, update), loaded in
+  that order by `tests/smoke.lua`, which holds the helpers (`check`, `wait`, `child`, `fake_server`,
+  `SLOW`). `./scripts/test.sh <text>` runs only the checks whose name contains `<text>`. Later areas may
+  rely on state earlier ones left (an attached lua_ls). "no startup errors" names the first check that
+  left `v:errmsg` set.
+- `./scripts/bench.sh [runs]` prints the median startup time (default 10 runs) for an empty start and for
+  opening a file. `BENCH_MAX_EMPTY_MS` / `BENCH_MAX_FILE_MS` make it fail over a budget (CI uses loose ones).
 - Formatting: `stylua .` to format, `stylua --check .` to check (`stylua.toml`: 2 spaces, 120 columns).
   `.luarc.json` declares the globals `vim`, `Snacks`, `Lumen` and `MiniIcons`.
-- CI (`.github/workflows/ci.yml`) runs `stylua --check .` plus `./scripts/test.sh` on Neovim **stable and nightly**.
+- CI (`.github/workflows/ci.yml`) runs `stylua --check .` plus `./scripts/test.sh` on Neovim **stable and
+  nightly** (Linux) and stable on **macOS**, then a loose startup budget with `scripts/bench.sh`.
 - **Stable update channel**: `.github/workflows/stable-lock.yml` runs nightly (and on demand). It
   resolves the newest version of every plugin with all packs enabled (`scripts/vetted-lock.sh resolve`),
   verifies that exact set on stable and nightly Neovim (`scripts/vetted-lock.sh verify`: restore, load
@@ -182,6 +203,15 @@ Rules:
   `write_lock`). And run lazy's update/restore **blocking** (`wait = true`): an async runner can record
   the lockfile from the *current* commits before its checkout runs, silently undoing a pin or rollback.
   The real-lazy test "rollback really moves plugins" guards both. Mocked tests did not catch either.
+- **`vim.fs.root()` / `vim.fs.find()` function markers** get `(name, path)` where `path` is the *folder
+  holding* the item on current Neovim, though the docs say the item's own path. Handle both (see the
+  `.vscode` marker in `tasks.lua`). The root comes back as a real path (`/var` → `/private/var` on
+  macOS): compare it with real paths.
+- **Never call `vim.secure.read()` at startup.** It prompts with a blocking `confirm()`. `project.lua`
+  checks the trust database itself (sha256 of the file against `stdpath("state")/trust`) and leaves
+  prompting to `:Lumen trust`.
+- render-markdown.nvim leaves `E31: No such mapping` in `v:errmsg` the first time it loads (a caught
+  unmap). A test that opens the first markdown buffer must tolerate exactly that (see the news test).
 - **Headless tests must stub every prompt.** `prompt_restart` and anything else that ends in
   `vim.ui.select` blocks a headless run forever (it's Neovim's `inputlist()` there). Watch for prompts
   that are *scheduled*: restore the stub only after a `vim.wait()` lets them fire.

@@ -2,6 +2,7 @@
 return {
   desc = "Swift (sourcekit-lsp from Xcode / toolchain)",
   ft = { "swift" },
+  requires = { "swift" },
   parsers = { "swift" },
   servers = { sourcekit = { mason = false } },
   tools = { "swiftformat" },

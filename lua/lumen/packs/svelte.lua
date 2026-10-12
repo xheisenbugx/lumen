@@ -2,6 +2,7 @@
 return {
   desc = "Svelte",
   ft = { "svelte" },
+  requires = { "node", "npm" },
   parsers = { "svelte", "typescript", "css" },
   servers = { svelte = {} },
   tools = { "prettierd" },

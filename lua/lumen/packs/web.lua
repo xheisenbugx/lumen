@@ -4,6 +4,7 @@ local prettier = { "prettierd", "prettier", stop_after_first = true }
 return {
   desc = "HTML, CSS, SCSS, Tailwind",
   ft = { "html", "css", "scss", "less" },
+  requires = { "node", "npm" },
   parsers = { "html", "css", "scss" },
   servers = {
     html = {},

@@ -2,6 +2,7 @@
 return {
   desc = "Shell scripts (bashls, shellcheck, shfmt)",
   ft = { "sh", "bash", "zsh" },
+  requires = { "node", "npm" },
   parsers = { "bash" },
   servers = { bashls = {} },
   tools = { "shellcheck", "shfmt" },

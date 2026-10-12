@@ -38,13 +38,58 @@ function M.check()
   end
 
   h.start("Language packs")
-  local enabled = require("lumen.packs").enabled()
-  for _, name in ipairs(require("lumen.packs").available()) do
+  local packs = require("lumen.packs")
+  local enabled, via = packs.enabled()
+  for _, name in ipairs(packs.available()) do
     if enabled[name] then
-      h.ok(name)
+      local missing = packs.missing(packs.get(name) or {})
+      local label = name .. (via[name] and (" (needed by " .. via[name] .. ")") or "")
+      if #missing == 0 then
+        h.ok(label)
+      else
+        h.warn(
+          ("%s: `%s` not found on PATH — its language server or tools can't run"):format(
+            label,
+            table.concat(missing, "`, `")
+          )
+        )
+      end
     end
   end
   h.info("Manage packs with `:Lumen packs`")
+
+  local project = require("lumen.project")
+  if project.path then
+    local where = vim.fn.fnamemodify(project.path, ":~")
+    if project.trusted then
+      h.ok(("project settings from `%s`"):format(where))
+    else
+      h.warn(
+        ("`%s` is not trusted, so it isn't used"):format(where),
+        { "Review it with `:Lumen project`, then `:Lumen trust`" }
+      )
+    end
+  end
+
+  h.start("Updates")
+  -- :Lumen update writes lazy-lock.json itself and has to refresh lazy.nvim's in-memory copy, which
+  -- lives in private fields. If a lazy.nvim release renames them, pins and rollbacks would silently
+  -- use stale commits: say so here instead.
+  local ok, Lock = pcall(require, "lazy.manage.lock")
+  if
+    ok
+    and type(Lock) == "table"
+    and type(Lock.load) == "function"
+    and type(Lock.lock) == "table"
+    and type(Lock._loaded) == "boolean"
+  then
+    h.ok("lazy.nvim lockfile internals are where :Lumen update expects them")
+  else
+    h.error(
+      "lazy.nvim's lockfile internals changed: `:Lumen update` pins and `:Lumen rollback` may not apply",
+      { "Update Lumen, or use `:Lazy restore` with a known-good lazy-lock.json until it's fixed" }
+    )
+  end
 
   h.start("UI")
   if vim.o.cmdheight == 0 then

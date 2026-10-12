@@ -9,7 +9,7 @@
 --               autocmds, commands and Lumen's UI.
 local M = {}
 
-M.version = "0.2.0"
+M.version = "0.3.0"
 
 local did_init = false
 
@@ -128,6 +128,7 @@ function M.setup(opts)
     end
 
     Lumen.on_very_lazy(M.welcome)
+    Lumen.on_very_lazy(require("lumen.project").check)
   end)
 
   -- `:restart` (e.g. after enabling a pack) restores the session into the current window. If

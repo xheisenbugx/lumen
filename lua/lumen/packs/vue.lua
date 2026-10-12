@@ -1,11 +1,15 @@
 -- Vue 3: vue_ls handles templates/styles, vtsls (with the Vue TS plugin) handles <script>.
-local vue_ts_plugin = vim.fn.stdpath("data") .. "/mason/packages/vue-language-server/node_modules/@vue/language-server"
+-- Builds on the typescript pack: this adds `vue` to vtsls and plugs the Vue TS plugin in.
+-- `$MASON/` is Mason's install root, wherever `install_root_dir` puts it (resolved by lumen.lsp)
+local vue_ts_plugin = "$MASON/packages/vue-language-server/node_modules/@vue/language-server"
 
 ---@type lumen.Pack
 return {
   desc = "Vue (vue_ls + vtsls hybrid mode)",
   ft = { "vue" },
-  parsers = { "vue", "typescript", "javascript", "css" },
+  requires = { "node", "npm" },
+  extends = { "typescript" },
+  parsers = { "vue", "css" },
   servers = {
     vue_ls = {},
     vtsls = {

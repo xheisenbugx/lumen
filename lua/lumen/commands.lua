@@ -5,12 +5,15 @@ local actions = {
     desc = "Manage language packs",
     run = function(args)
       local sub, name = args[1], args[2]
-      if (sub == "enable" or sub == "disable") and name then
-        if not vim.tbl_contains(packs.available(), name) then
+      if (sub == "enable" or sub == "disable" or sub == "dismiss") and name then
+        if not packs.exists(name) then
           return Lumen.error("unknown pack: " .. name)
         end
-        packs.set(name, sub == "enable")
-        return packs.prompt_restart(("%s pack `%s`"):format(sub == "enable" and "Enabled" or "Disabled", name))
+        if sub == "dismiss" then
+          packs.dismiss(name)
+          return Lumen.notify(("Lumen won't suggest the `%s` pack again"):format(name))
+        end
+        return packs.toggle(name, sub == "enable")
       end
       packs.pick()
     end,
@@ -81,6 +84,24 @@ local actions = {
       vim.cmd.edit(vim.fn.stdpath("config") .. "/lua/config/lumen.lua")
     end,
   },
+  project = {
+    desc = "Edit this project's .lumen.lua (per-project packs, tasks, settings)",
+    run = function()
+      require("lumen.project").edit()
+    end,
+  },
+  trust = {
+    desc = "Trust this project's .lumen.lua and apply it",
+    run = function()
+      require("lumen.project").trust()
+    end,
+  },
+  news = {
+    desc = "What's new in Lumen",
+    run = function()
+      require("lumen.update").news()
+    end,
+  },
   keys = {
     desc = "Search all keymaps",
     run = function()
@@ -93,8 +114,22 @@ local actions = {
 }
 
 -- menu order: everyday things first, maintenance last
-local names =
-  { "packs", "why", "doctor", "tasks", "keys", "config", "theme", "health", "update", "rollback", "profile" }
+local names = {
+  "packs",
+  "why",
+  "doctor",
+  "tasks",
+  "keys",
+  "config",
+  "project",
+  "trust",
+  "theme",
+  "health",
+  "update",
+  "rollback",
+  "news",
+  "profile",
+}
 local rest = vim.tbl_filter(function(n)
   return not vim.tbl_contains(names, n)
 end, vim.tbl_keys(actions))
@@ -138,7 +173,7 @@ end, {
     elseif #parts == 3 and parts[2] == "doctor" then
       return { "json" }
     elseif #parts == 3 and parts[2] == "packs" then
-      return { "enable", "disable" }
+      return { "enable", "disable", "dismiss" }
     elseif #parts == 4 and parts[2] == "packs" then
       return packs.available()
     end

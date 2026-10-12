@@ -2,6 +2,7 @@
 return {
   desc = "AI: Copilot suggestions + sidekick (CLI agents & next-edit)",
   ft = {},
+  requires = { "node", "npm" },
   servers = { copilot = {} },
   -- Copilot's ghost-text suggestions use Neovim's inline completion (0.12+), which is off by
   -- default. (Not via the server's on_attach: that would replace lspconfig's, with its sign-in commands.)

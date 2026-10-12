@@ -14,8 +14,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        nvim: [stable, nightly]
-    runs-on: ubuntu-latest
+        include:
+          - { os: ubuntu-latest, nvim: stable }
+          - { os: ubuntu-latest, nvim: nightly }
+          # install.sh, tool detection and paths (/var → /private/var) behave differently on macOS
+          - { os: macos-latest, nvim: stable }
+    runs-on: ${{ matrix.os }}
     # first run clones plugins, compiles parsers and installs lua_ls via Mason (~1-2 min);
     # the cap keeps an accidental blocking prompt from burning the 6h default
     timeout-minutes: 20
@@ -25,10 +29,22 @@ jobs:
         with:
           neovim: true
           version: ${{ matrix.nvim }}
-      - name: tools
+      - name: tools (linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update && sudo apt-get install -y ripgrep build-essential unzip
           npm install -g tree-sitter-cli
           nvim --version && tree-sitter --version
+      - name: tools (macos)
+        if: runner.os == 'macOS'
+        run: |
+          brew install ripgrep
+          npm install -g tree-sitter-cli
+          nvim --version && tree-sitter --version
       - name: smoke test
         run: bash ./scripts/test.sh
+      # a loose startup gate: shared runners are several times slower than a laptop, so this only
+      # catches gross regressions (something loading eagerly), not the README's numbers
+      - name: startup budget
+        if: matrix.os == 'ubuntu-latest' && matrix.nvim == 'stable'
+        run: BENCH_MAX_EMPTY_MS=200 BENCH_MAX_FILE_MS=500 bash ./scripts/bench.sh 10

@@ -2,6 +2,7 @@
 return {
   desc = "Haskell (haskell-language-server, ormolu)",
   ft = { "haskell", "lhaskell", "cabal" },
+  requires = { "ghc" },
   parsers = { "haskell" },
   -- hls must match your GHC; ghcup's copy is preferred when on $PATH
   servers = { hls = { filetypes = { "haskell", "lhaskell", "cabal" } } },

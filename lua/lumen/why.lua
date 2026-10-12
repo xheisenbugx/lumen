@@ -102,6 +102,12 @@ function M.report(buf, opts)
   else
     item(NO, ("`%s` exists but is disabled"):format(pack), ":Lumen packs enable " .. pack)
   end
+  -- toolchains Mason can't install: a missing `go` otherwise surfaces as a confusing gopls failure
+  if pack then
+    for _, bin in ipairs(require("lumen.packs").missing(require("lumen.packs").get(pack) or {})) do
+      item(NO, ("`%s` not found on PATH — the `%s` pack needs it (install it yourself)"):format(bin, pack))
+    end
+  end
   add()
 
   -- ── treesitter ──
@@ -417,7 +423,36 @@ function M.server_details(sname, cfg, client, buf)
   return out
 end
 
---- the doctor report as data, for bug reports and AI assistants
+--- replace your home directory with `~` everywhere in `value` (strings, nested tables)
+---@param value any
+---@param home string
+local function redact(value, home)
+  if type(value) == "string" then
+    -- plain find/replace: home paths can contain pattern characters
+    local out, i = {}, 1
+    while true do
+      local s, e = value:find(home, i, true)
+      if not s then
+        break
+      end
+      out[#out + 1] = value:sub(i, s - 1) .. "~"
+      i = e + 1
+    end
+    out[#out + 1] = value:sub(i)
+    return table.concat(out)
+  elseif type(value) == "table" then
+    local out = {}
+    for k, v in pairs(value) do
+      out[k] = redact(v, home)
+    end
+    return out
+  end
+  return value
+end
+M._redact = redact -- for tests
+
+--- the doctor report as data, for bug reports and AI assistants. It's meant to be pasted in public,
+--- so your home directory becomes `~` everywhere, log lines included.
 ---@param buf? integer
 function M.json(buf)
   buf = (buf == nil or buf == 0) and vim.api.nvim_get_current_buf() or buf
@@ -425,13 +460,18 @@ function M.json(buf)
   for _, c in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
     servers[#servers + 1] = { name = c.name, root = c.root_dir, attached = true }
   end
-  return vim.json.encode({
+  local data = {
     environment = M.environment(),
     file = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(buf), ":~:."),
     filetype = vim.bo[buf].filetype,
     attached = servers,
     report = M.report(buf, { deep = true }),
-  })
+  }
+  local home = vim.uv.os_homedir()
+  if home and #home > 1 then
+    data = redact(data, vim.fs.normalize(home))
+  end
+  return vim.json.encode(data)
 end
 
 --- the command a report line points to: the `→` fix on this line or the next one

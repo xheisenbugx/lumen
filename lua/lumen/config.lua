@@ -18,14 +18,15 @@ local defaults = {
   -- right-edge scrollbar with diagnostics / git / search / cursor marks
   scrollbar = true,
   -- extra tasks for the task runner: { { name = "deploy", cmd = "./deploy.sh" } }, plus an optional
-  -- `cwd` (default: the project root)
+  -- `cwd` (default: the project root). A project's .lumen.lua can add more (see lumen.project)
   tasks = {},
   -- how diagnostics show inline: "text" | "lines" (current line) | "signs"
   diagnostics = "text",
 
-  -- language packs to enable (see :Lumen packs for the full list)
+  -- language packs to enable (see :Lumen packs for the full list). A project's .lumen.lua adds to
+  -- these, and packs pull in the packs they `extends`
   packs = { "lua", "json", "yaml", "toml", "markdown", "bash" },
-  -- offer to enable a pack when you open a filetype it supports
+  -- suggest a pack (in a notification) when you open a filetype it supports
   suggest_packs = true,
   -- install missing treesitter parsers on demand when opening a file
   auto_install_parsers = true,
@@ -84,11 +85,13 @@ local function user_module(mod)
   return {}
 end
 
---- settings from your config dir: lua/config/lumen.lua (or the older lua/user/config.lua)
+--- settings from your config dir: lua/config/lumen.lua (or the older lua/user/config.lua), then
+--- the project's trusted .lumen.lua (see lumen.project)
 function M.load()
   options = vim.deepcopy(defaults)
   merge(options, user_module("user.config"))
   merge(options, user_module("config.lumen"))
+  merge(options, require("lumen.project").load())
 end
 
 -- settings needed while lazy.nvim builds the plugin list / before plugins map keys, i.e. before
@@ -117,6 +120,8 @@ function M.merge(opts)
     end
   end
   merge(options, opts)
+  -- the project's .lumen.lua still wins over your global settings
+  merge(options, require("lumen.project").settings())
 end
 
 M.defaults = defaults

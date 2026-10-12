@@ -1,0 +1,232 @@
+*lumen.txt*        A native-first Neovim distribution: light, fast & beautiful
+
+==============================================================================
+CONTENTS                                                      *lumen-contents*
+
+  1. Introduction ............................................ |lumen|
+  2. Configuration ........................................... |lumen-config|
+  3. Language packs .......................................... |lumen-packs|
+  4. Project settings (.lumen.lua) ........................... |lumen-project|
+  5. Commands ................................................ |:Lumen|
+  6. Tasks ................................................... |lumen-tasks|
+  7. Updates ................................................. |lumen-update|
+  8. Theme ................................................... |lumen-theme|
+  9. Troubleshooting ......................................... |lumen-why|
+
+==============================================================================
+1. INTRODUCTION                                                        *lumen*
+
+Lumen is a Neovim distribution packaged as a lazy.nvim plugin, used the way
+LazyVim is. It needs Neovim 0.11+ (0.12+ recommended). Your config dir holds a
+small starter: `init.lua` loads Lumen, `lua/config/lumen.lua` holds settings and
+`lua/plugins/` holds your own plugins and overrides.
+
+Lumen brings its own colorscheme, statusline, tabline, winbar, scrollbar and
+fold text, native LSP through `vim.lsp.config`/`vim.lsp.enable`, declarative
+language packs, a task runner and safe updates with rollback.
+
+The README has screenshots and the full keymap tables:
+https://github.com/xheisenbugx/lumen
+
+Press <leader> and wait: which-key lists every keymap. `:Lumen keys` searches
+them.
+
+==============================================================================
+2. CONFIGURATION                                                *lumen-config*
+
+                                                              *lumen-settings*
+`lua/config/lumen.lua` returns a table. Every key is optional: >lua
+
+  return {
+    colorscheme = "lumen",   -- "lumen-night", "lumen-dawn", or any scheme
+    accent = "amber",        -- a palette name or "#rrggbb"
+    packs = { "lua", "json", "yaml", "toml", "markdown", "bash" },
+    format_on_save = true,
+    diagnostics = "text",    -- "text" | "lines" | "signs"
+    tasks = { { name = "deploy", cmd = "./scripts/deploy.sh" } },
+  }
+<
+The defaults and their comments live in `lua/lumen/config.lua`.
+
+Settings other than `packs`, `leader`, `localleader` and `ui2` can also be
+passed as spec opts from any file in `lua/plugins/`: >lua
+
+  return { { "lumen", opts = { accent = "violet" } } }
+<
+Other files Lumen loads from your config dir, LazyVim style:
+  `lua/config/options.lua`   right after Lumen's options
+  `lua/config/keymaps.lua`   after Lumen's keymaps, so yours win
+  `lua/config/autocmds.lua`  after Lumen's autocmds
+
+==============================================================================
+3. LANGUAGE PACKS                                                *lumen-packs*
+
+A pack is one data file that lists what a language needs. Only `lua`, `json`,
+`yaml`, `toml`, `markdown` and `bash` are on by default. To enable one:
+
+  - `:Lumen packs` opens a picker; <CR> toggles a pack.
+  - `:Lumen packs enable rust` from the command line.
+  - add it to `packs` in `lua/config/lumen.lua`.
+  - open a file of that type: Lumen suggests the matching pack in a
+    notification. `:Lumen packs dismiss <name>` stops the suggestion.
+
+Packs that only configure servers, parsers, Mason tools, formatters and
+linters take effect right away, in the running Neovim. Packs that add plugins
+(and disabling any pack) need a restart, which Lumen offers.
+
+                                                           *lumen-pack-format*
+Packs live in `lua/lumen/packs/<name>.lua`; drop your own in the same path in
+your config dir and they appear in the list. Fields, all optional: >lua
+
+  return {
+    desc = "Go (gopls, goimports, gofumpt)",
+    ft = { "go" },                          -- filetypes (for suggestions)
+    parsers = { "go" },                     -- treesitter parsers
+    servers = { gopls = {} },               -- vim.lsp.config tables
+    tools = { "gofumpt" },                  -- extra Mason packages
+    formatters = { go = { "gofumpt" } },    -- conform formatters_by_ft
+    formatter_opts = {},                    -- conform formatter options
+    linters = { go = { "golangcilint" } },  -- nvim-lint linters_by_ft
+    plugins = {},                           -- extra lazy.nvim specs
+    setup = function() end,                 -- runs when the pack is enabled
+    requires = { "go" },                    -- binaries Mason can't install
+    extends = { "typescript" },             -- packs enabled along with it
+  }
+<
+`requires` lists toolchains the pack's servers and tools need on your PATH. A
+nested list means "any of these", e.g. `{ { "python3", "python" } }`. Missing
+ones show in `:checkhealth lumen`, `:Lumen why` and the pack suggestion.
+
+`extends` enables other packs along with this one: `vue` extends
+`typescript`. The picker marks such packs "needed by vue".
+
+Server tables may use `$MASON/` at the start of a string for Mason's install
+root, wherever `install_root_dir` puts it.
+
+A server with `mason = false` is never installed through Mason: bring its
+binary yourself.
+
+==============================================================================
+4. PROJECT SETTINGS                             *lumen-project* *.lumen.lua*
+
+A `.lumen.lua` file in a project (Lumen looks upward from the directory
+Neovim starts in) returns a table like `lua/config/lumen.lua`: >lua
+
+  return {
+    packs = { "go" },          -- added to your packs, for this project only
+    tasks = {                  -- added to the task runner
+      { name = "e2e", cmd = "make e2e", cwd = "web" },  -- cwd: relative to
+    },                                                  -- the .lumen.lua
+    format_on_save = false,    -- any other setting overrides yours
+  }
+<
+`leader`, `localleader`, `ui2` and `update_channel` can't be set per project.
+
+The file is code from the project, so Lumen only runs it once you trust it,
+using Neovim's trust database (the one |:trust| manages). Startup never
+prompts: an untrusted or edited file gets a notification instead.
+
+  `:Lumen project`   open the project's `.lumen.lua` (or start one)
+  `:Lumen trust`     trust it as it is on disk and apply it right away
+
+==============================================================================
+5. COMMANDS                                                           *:Lumen*
+
+`:Lumen` without arguments opens a menu.
+
+`:Lumen packs`                                                  *:Lumen-packs*
+    Pick language packs. `:Lumen packs enable <name>` (or `disable`, or
+    `dismiss`) does it from the command line. See |lumen-packs|.
+
+`:Lumen why`                                                      *:Lumen-why*
+    Explain this buffer's pack, parser, servers, formatters, linters and
+    root. <CR> on a problem runs its fix. See |lumen-why|.
+
+`:Lumen doctor [json]`                                         *:Lumen-doctor*
+    The deep version of `:Lumen why`: binaries, Mason, root trace, server
+    capabilities and the LSP log. `json` copies the report to the clipboard,
+    with your home directory replaced by `~`.
+
+`:Lumen tasks`                                                  *:Lumen-tasks*
+    Run a project task. See |lumen-tasks|.
+
+`:Lumen update`                                                *:Lumen-update*
+    Snapshot, update, verify in a clean Neovim, offer a rollback. See
+    |lumen-update|.
+
+`:Lumen rollback`                                            *:Lumen-rollback*
+    Restore plugins from one of the last 15 snapshots.
+
+`:Lumen news`                                                    *:Lumen-news*
+    What's new in Lumen, newest first.
+
+`:Lumen project`                                              *:Lumen-project*
+    Edit this project's `.lumen.lua`. See |lumen-project|.
+
+`:Lumen trust`                                                  *:Lumen-trust*
+    Trust this project's `.lumen.lua` and apply it.
+
+`:Lumen config`     edit your config
+`:Lumen keys`       search all keymaps
+`:Lumen theme`      toggle night / dawn
+`:Lumen health`     run `:checkhealth lumen`
+`:Lumen profile`    startup profile
+
+==============================================================================
+6. TASKS                                                         *lumen-tasks*
+
+<leader>rt finds your project's tasks: package.json scripts (npm, pnpm, yarn
+or bun), deno, Makefile, justfile, cargo, go, uv/poetry/pytest, composer, mix,
+gradle, maven, dotnet, zig, cmake, docker compose and `.vscode/tasks.json`
+(shell, process and npm tasks, with `${workspaceFolder}`-style variables and
+per-OS fields), plus `tasks` from your settings and the project's
+`.lumen.lua`.
+
+  <leader>rt   pick a task (<C-q> in the picker runs it in the background)
+  <leader>rr   re-run the last task
+  <leader>rq   re-run the last task in the background, errors to quickfix
+  <leader>rw   watch: re-run the last task in the background on every save
+               in its folder (toggle; the statusline shows what's watched)
+
+==============================================================================
+7. UPDATES                                                      *lumen-update*
+
+`:Lumen update` snapshots `lazy-lock.json`, updates plugins, brings
+treesitter parsers in line with the new nvim-treesitter, then checks in a
+separate headless Neovim that everything loads: plugin errors, and any error
+that Neovim prints, fail the check. If it fails, Lumen offers to roll back.
+A rollback also brings parsers back in line.
+
+`update_channel = "stable"` (the default) moves the plugins Lumen ships to
+the versions CI tested together, and your own plugins to their latest.
+`"latest"` moves everything to the newest version.
+
+When Lumen itself moved to a new version, `:Lumen update` shows what's new
+(also `:Lumen news`).
+
+==============================================================================
+8. THEME                                                         *lumen-theme*
+
+`lumen` follows 'background': `lumen-night` when it's dark, `lumen-dawn`
+when it's light (<leader>ub toggles). Settings: >lua
+
+  accent = "violet",                       -- recolors every point of focus
+  colors = { night = { bg = "#0b0d12" } }, -- palette overrides per variant
+  on_highlights = function(hl, p)          -- tweak any highlight
+    hl.Comment = { fg = p.teal, italic = true }
+  end,
+<
+Any other colorscheme works too: Lumen's statusline, tabline, winbar and
+folds restyle themselves to match it.
+
+==============================================================================
+9. TROUBLESHOOTING                                                 *lumen-why*
+
+  - `:Lumen why` (<leader>cw) explains the current buffer and gives the
+    command that fixes each problem; <CR> on it runs the command.
+  - `:Lumen doctor` (<leader>cD) goes deeper, for a language server that
+    won't cooperate.
+  - `:checkhealth lumen` (also `:Lumen health`) checks the tools Lumen needs,
+    the toolchains your packs need, and the project's `.lumen.lua`.
+
+ vim:tw=78:ts=8:ft=help:norl:

@@ -2,6 +2,7 @@
 return {
   desc = "JSON with SchemaStore schemas",
   ft = { "json", "jsonc", "json5" },
+  requires = { "node", "npm" },
   parsers = { "json", "json5" },
   servers = {
     jsonls = {

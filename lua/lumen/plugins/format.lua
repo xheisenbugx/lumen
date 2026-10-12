@@ -41,24 +41,45 @@ return {
       local lint = require("lint")
       lint.linters_by_ft = opts.linters_by_ft
 
+      -- runnable linters per filetype: resolving them calls function linters and probes PATH,
+      -- too much for every InsertLeave. Reset when a tool gets installed or packs change.
+      local runnable = {} ---@type table<string, string[]>
+      local function resolve(ft)
+        if not runnable[ft] then
+          runnable[ft] = vim.tbl_filter(function(name)
+            local linter = lint.linters[name]
+            local ok, cmd = pcall(function()
+              local l = type(linter) == "function" and linter() or linter
+              local c = l and l.cmd
+              return type(c) == "function" and c() or c
+            end)
+            return ok and type(cmd) == "string" and vim.fn.executable(cmd) == 1
+          end, lint._resolve_linter_by_ft(ft))
+        end
+        return runnable[ft]
+      end
+
       local timer = assert(vim.uv.new_timer())
       local function run()
-        local names = lint._resolve_linter_by_ft(vim.bo.filetype)
-        names = vim.tbl_filter(function(name)
-          local linter = lint.linters[name]
-          local cmd = linter and (type(linter) == "function" and linter().cmd or linter.cmd)
-          return cmd ~= nil and vim.fn.executable(type(cmd) == "function" and cmd() or cmd) == 1
-        end, names)
+        local names = resolve(vim.bo.filetype)
         if #names > 0 then
           lint.try_lint(names)
         end
       end
 
+      local group = vim.api.nvim_create_augroup("lumen_lint", { clear = true })
       vim.api.nvim_create_autocmd({ "BufWritePost", "BufReadPost", "InsertLeave" }, {
-        group = vim.api.nvim_create_augroup("lumen_lint", { clear = true }),
+        group = group,
         callback = function()
           timer:stop()
           timer:start(100, 0, vim.schedule_wrap(run))
+        end,
+      })
+      vim.api.nvim_create_autocmd("User", {
+        group = group,
+        pattern = { "LumenToolInstalled", "LumenPacksChanged" },
+        callback = function()
+          runnable = {}
         end,
       })
     end,
