@@ -165,7 +165,13 @@ return {
       { "<leader>sR", function() Snacks.picker.resume() end, desc = "Resume last picker" },
       { "<leader>su", function() Snacks.picker.undo() end, desc = "Undo history" },
       -- git
-      { "<leader>gg", function() Snacks.lazygit({ cwd = Lumen.root.git() }) end, desc = "Lazygit" },
+      { "<leader>gg", function()
+        -- without lazygit, Snacks throws a raw "not executable" Lua error
+        if vim.fn.executable("lazygit") == 0 then
+          return Lumen.warn("lazygit isn't installed: https://github.com/jesseduffield/lazygit#installation")
+        end
+        Snacks.lazygit({ cwd = Lumen.root.git() })
+      end, desc = "Lazygit" },
       { "<leader>gs", function() Snacks.picker.git_status() end, desc = "Status" },
       { "<leader>gS", function() Snacks.picker.git_stash() end, desc = "Stash" },
       { "<leader>gl", function() Snacks.picker.git_log({ cwd = Lumen.root.git() }) end, desc = "Log" },

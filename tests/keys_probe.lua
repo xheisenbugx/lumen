@@ -13,6 +13,11 @@ local SKIP = {
 
 local dir ---@type string the scratch project (set below)
 
+-- keys that drive an optional tool (README: "Optional: fd, lazygit, node"): skipped without it
+local NEEDS = {
+  ["n <Space>fp"] = "fd", -- Snacks reports "no supported finder" (an error, though a clear one)
+}
+
 -- per-key preconditions, so a key is tested where it makes sense
 local SETUP = {
   ["n <Space>wd"] = function()
@@ -85,6 +90,12 @@ end
 
 local function reset(file)
   pcall(function()
+    -- closing a picker while its async finder runs crashes inside snacks: let it finish first
+    vim.wait(2000, function()
+      return not vim.iter(Snacks.picker.get()):any(function(p)
+        return p:is_active()
+      end)
+    end, 20)
     for _, p in ipairs(Snacks.picker.get()) do
       p:close()
     end
@@ -144,7 +155,7 @@ local function run()
   end)
 
   for _, k in ipairs(keys) do
-    if SKIP[k.id] then
+    if SKIP[k.id] or (NEEDS[k.id] and vim.fn.executable(NEEDS[k.id]) == 0) then
       results.skipped[#results.skipped + 1] = k.id
     else
       file = reset(file)

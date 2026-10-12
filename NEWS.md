@@ -24,6 +24,8 @@ Fixes from a full audit, plus a test that presses every keymap Lumen defines.
     has loaded; `:TodoQuickFix` and `:TodoLocList` load todo-comments.
   - `<leader>mw` works in visual-block mode, and its message points at `<leader>mc` (Lumen's
     `<C-l>` moves to the right window, it doesn't clear cursors).
+  - `]d` and friends no longer print "opts.float is deprecated" on every jump (Neovim 0.12+).
+  - `<leader>gg` without lazygit installed says so, instead of a Lua error.
 - **UI:**
   - Inactive windows' winbar no longer shows the file name as active.
   - Breadcrumbs refresh after edits made while a symbol request was in flight, and in a buffer

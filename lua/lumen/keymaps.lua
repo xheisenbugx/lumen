@@ -112,9 +112,9 @@ map("n", "<leader>fn", "<cmd>enew<cr>", { desc = "New file" })
 map("n", "[q", "<cmd>exe v:count1 . 'cprevious'<cr>", { desc = "Prev quickfix" })
 map("n", "]q", "<cmd>exe v:count1 . 'cnext'<cr>", { desc = "Next quickfix" })
 
--- show the diagnostic jumped to in a float. 0.13 deprecates `float` (a warning on every jump)
--- for `on_jump`; older versions only know `float`
-local show_float = vim.fn.has("nvim-0.13") == 1
+-- show the diagnostic jumped to in a float. 0.12 deprecates `float` (a warning on every jump)
+-- for `on_jump`; 0.11 only knows `float`
+local show_float = vim.fn.has("nvim-0.12") == 1
     and {
       on_jump = function(diagnostic, bufnr)
         if diagnostic then
