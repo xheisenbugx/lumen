@@ -119,12 +119,23 @@ end
 -- Terminals are keyed by their cwd (Snacks keys them by cmd + cwd). Inside one, the root of the
 -- terminal buffer is not the root it was opened for (no file: it falls back to the cwd), so
 -- toggling has to reuse the cwd stored on the terminal, or <C-/> opens a second terminal.
+-- The same goes for any other window while a terminal is shown: its root can differ (a scratch
+-- buffer, the explorer, an LSP root found since), so `opts.toggle` hides the shown terminal.
 local fallback_terms = {} ---@type table<string, integer> cwd → terminal buffer (snacks.nvim disabled)
 
 --- open, or hide, the terminal for `cwd` (default: the cwd)
 ---@param cwd? string
-function M.terminal(cwd)
+---@param opts? { toggle?: boolean } toggle: hide the terminal shown in this tab, whatever its cwd
+function M.terminal(cwd, opts)
   local stored = vim.b.lumen_terminal_cwd
+  if stored == nil and opts and opts.toggle then
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      stored = vim.b[vim.api.nvim_win_get_buf(win)].lumen_terminal_cwd
+      if stored ~= nil then
+        break
+      end
+    end
+  end
   if stored ~= nil then
     cwd = stored ~= "" and stored or nil
   end

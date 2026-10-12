@@ -3,6 +3,12 @@
 What changed for you, newest first. `:Lumen update` shows the sections newer than the version you
 were running, and `:Lumen news` shows them all.
 
+## 0.3.2
+
+- **`<C-/>` hides the terminal that's shown, from any window.** With the terminal on screen and
+  the cursor in another window whose root differs (a scratch buffer, the explorer, a root the LSP
+  found since), it opened a second terminal next to the first.
+
 ## 0.3.1
 
 Fixes from a full audit, plus a test that presses every keymap Lumen defines.
