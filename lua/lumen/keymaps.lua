@@ -270,10 +270,10 @@ end, { desc = "Inspect tree" })
 -- ── terminal ─────────────────────────────────────────────────
 local terminal = Lumen.terminal
 map({ "n", "t" }, "<C-/>", function()
-  terminal(Lumen.root())
+  terminal(Lumen.root(), { toggle = true })
 end, { desc = "Terminal (root)" })
 map({ "n", "t" }, "<C-_>", function()
-  terminal(Lumen.root())
+  terminal(Lumen.root(), { toggle = true })
 end, { desc = "which_key_ignore" })
 map("n", "<leader>ft", function()
   terminal(Lumen.root())

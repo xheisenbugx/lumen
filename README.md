@@ -518,7 +518,7 @@ LazyVim's, so your muscle memory carries over.
 | `<leader>bd` / `bo` / `bD` | delete / others / buffer & window | `<leader><tab>*` | tab pages |
 | `<leader>qs` / `ql` / `qS` | restore / last / select session | `<leader>qd` | don't save session |
 | `<leader>qr` | restart Neovim (0.12+) | `<leader>qq` | quit all |
-| `<C-/>` | terminal: opens the project's, hides it from inside | `<leader>l` / `L` | Lazy / Lumen menu |
+| `<C-/>` | terminal: opens the project's, hides the shown one from any window | `<leader>l` / `L` | Lazy / Lumen menu |
 
 **Packs:** `dap` adds `<leader>d*` and `F5` `F10` `F11`, `test` adds `<leader>t*`, `ai` adds
 `<leader>a*` (and `<Tab>` accepts a Copilot suggestion in insert mode), `git` adds Octo issues / PRs / review,
