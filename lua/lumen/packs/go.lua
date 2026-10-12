@@ -2,6 +2,7 @@
 return {
   desc = "Go (gopls, goimports, gofumpt)",
   ft = { "go", "gomod", "gowork" },
+  requires = { "go" },
   parsers = { "go", "gomod", "gowork", "gosum" },
   servers = {
     gopls = {

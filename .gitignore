@@ -6,3 +6,4 @@ lazy-lock.json
 # agent worktrees
 .claude/
 .tests-lock/
+doc/tags

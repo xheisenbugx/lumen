@@ -2,6 +2,7 @@
 return {
   desc = "YAML with SchemaStore schemas",
   ft = { "yaml" },
+  requires = { "node", "npm" },
   parsers = { "yaml" },
   servers = {
     yamlls = {

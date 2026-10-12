@@ -2,6 +2,7 @@
 return {
   desc = "Dockerfile & compose",
   ft = { "dockerfile", "yaml.docker-compose" },
+  requires = { "node", "npm" },
   parsers = { "dockerfile" },
   servers = { dockerls = {}, docker_compose_language_service = {} },
   tools = { "hadolint" },

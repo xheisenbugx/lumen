@@ -2,6 +2,7 @@
 return {
   desc = "PHP (intelephense, php-cs-fixer)",
   ft = { "php", "blade" },
+  requires = { "php", "node", "npm" },
   parsers = { "php", "phpdoc", "blade" },
   servers = { intelephense = {} },
   tools = { "php-cs-fixer" },

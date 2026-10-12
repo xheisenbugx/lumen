@@ -113,8 +113,10 @@ themselves from whatever scheme is active.
 <img src="assets/packs.png" alt="The :Lumen packs picker" width="100%">
 
 Each language is a **pack**: one small data file listing parsers, servers, formatters, linters and
-any extra plugins. Open a file whose language you haven't enabled and Lumen offers the matching
-pack. Toggle packs in an interactive picker with `:Lumen packs`. See [Language packs](#language-packs).
+any extra plugins. Open a file whose language you haven't enabled and Lumen suggests the matching
+pack in a notification (it never grabs the keyboard). Toggle packs in an interactive picker with
+`:Lumen packs`. Most packs turn on **in the running editor, without a restart**. A project can
+bring its own packs and settings in a trusted `.lumen.lua`. See [Language packs](#language-packs).
 
 - **Native LSP** through `vim.lsp.config` / `vim.lsp.enable`, with inlay hints, LSP folding when the
   server supports it (treesitter folding in files over 10k lines), reference highlights and per-server keymaps. Missing servers install through
@@ -147,15 +149,22 @@ picked from your lockfile), deno, Makefile, justfile, cargo, go, uv/poetry/pytes
 gradle (via `gradlew`), maven, dotnet, zig, cmake and docker compose. In a monorepo it uses the manifest nearest to your
 file.
 
+It also reads `.vscode/tasks.json` (shell, process and npm tasks, with `${workspaceFolder}`-style
+variables and per-OS fields), so a project's VS Code tasks work as they are.
+
 Run a task in a terminal split, or press `<C-q>` to run it in the background: a spinner shows in
-the statusline and errors land in quickfix. `<leader>rr` re-runs the last task for the project.
-Add your own with `tasks = {}` in `lua/config/lumen.lua`.
+the statusline and errors land in quickfix. `<leader>rr` re-runs the last task for the project, and
+`<leader>rw` watches it: it re-runs in the background on every save in its folder. Add your own
+with `tasks = {}` in `lua/config/lumen.lua`, or per project in `.lumen.lua`.
 
 ### Safe updates
 
 `:Lumen update` snapshots `lazy-lock.json`, updates plugins and parsers, then verifies that
-everything still loads in a separate, clean Neovim. If something broke, it offers to roll back.
-`:Lumen rollback` restores any of the last 15 snapshots.
+everything still loads in a separate, clean Neovim. Plugin errors fail the check, and so does any
+error Neovim prints along the way (a Lua error in an autocmd, say). If something broke, it offers
+to roll back. `:Lumen rollback` restores any of the last 15 snapshots, and brings treesitter parsers
+back in line with the nvim-treesitter it restores. When Lumen itself moved, the update shows what's
+new (`:Lumen news` any time).
 
 **Update channels.** With the default `update_channel = "stable"`, plugins Lumen ships move to
 the exact versions in `lumen-lock.json`. A nightly CI job publishes that file only after the newest
@@ -261,6 +270,7 @@ Lumen itself lives with your other plugins and updates through lazy.nvim.
 | `lua/plugins/*.lua` | lazy.nvim specs. Add plugins, override Lumen's (`opts` are deep-merged), or disable one with `enabled = false`. |
 | `lua/config/options.lua` | Vim options, loaded right after Lumen's (LazyVim convention). |
 | `lua/config/keymaps.lua` · `autocmds.lua` | Your mappings and autocmds, loaded after Lumen's so yours win. |
+| `.lumen.lua` in a project | Per-project packs, tasks and settings, once you trust it. See [Per-project settings](#per-project-settings). |
 
 A typical `lua/config/lumen.lua`:
 
@@ -297,7 +307,7 @@ return {
 | `tasks` | `{}` | extra tasks: `{ { name = "deploy", cmd = "./deploy.sh" } }`; `cwd` is optional (default: the project root) |
 | `diagnostics` | `"text"` | `"text"` \| `"lines"` (current line) \| `"signs"` |
 | `packs` | `{ "lua", "json", "yaml", "toml", "markdown", "bash" }` | language packs to enable |
-| `suggest_packs` | `true` | offer a pack when you open a filetype it supports |
+| `suggest_packs` | `true` | suggest a pack (in a notification) when you open a filetype it supports |
 | `auto_install_parsers` | `true` | install missing treesitter parsers on demand |
 | `format_on_save` | `true` | |
 | `update_channel` | `"stable"` | `"stable"`: CI-tested plugin versions · `"latest"`: newest of everything |
@@ -324,6 +334,24 @@ return {
 }
 ```
 
+### Per-project settings
+
+Put a `.lumen.lua` in a project (Lumen looks for it from the directory you start Neovim in, and
+upward). It returns a table like `lua/config/lumen.lua`:
+
+```lua
+return {
+  packs = { "go" },                                                  -- added to your packs, here only
+  tasks = { { name = "e2e", cmd = "make e2e", cwd = "web" } },       -- cwd is relative to this file
+  format_on_save = false,                                            -- any other setting overrides yours
+}
+```
+
+It's code that comes with the project, so Lumen only runs it once you trust it, through Neovim's
+own trust database (the one `:trust` uses). Startup never prompts: an untrusted or edited file gets
+a notification. `:Lumen project` opens the file for review, and `:Lumen trust` trusts it and applies
+it right away. `leader`, `localleader`, `ui2` and `update_channel` can't be set per project.
+
 ## Language packs
 
 A pack is one file that lists what a language needs:
@@ -332,11 +360,17 @@ A pack is one file that lists what a language needs:
 -- lua/lumen/packs/python.lua (simplified)
 return {
   ft = { "python" },
+  requires = { { "python3", "python" } }, -- toolchains Mason can't install (a list = any of them)
   parsers = { "python" },
   servers = { basedpyright = {}, ruff = {} },
   formatters = { python = { "ruff_organize_imports", "ruff_format" } },
 }
 ```
+
+The other fields are `tools` (extra Mason packages), `linters`, `formatter_opts`, `plugins` (extra
+lazy.nvim specs), `setup` (a function run when the pack is enabled) and `extends` (packs enabled
+along with this one: `vue` and `astro` extend `typescript`). Missing `requires` show up in
+`:checkhealth lumen`, `:Lumen why` and the pack suggestion, instead of as a confusing server failure.
 
 There are **46 packs**, and all of them are optional. Only `lua`, `json`, `yaml`, `toml`, `markdown` and `bash` are on by default:
 
@@ -367,12 +401,15 @@ them, override all three paths from a file in `lua/plugins/`:
 } }
 ```
 
-Four ways to enable a pack:
+Ways to enable a pack:
 
-- `:Lumen packs` opens the picker. Press enter to toggle, then restart when asked.
+- `:Lumen packs` opens the picker. Press enter to toggle.
 - `:Lumen packs enable rust` from the command line.
-- Add it to `packs = {}` in `lua/config/lumen.lua`.
-- Open a file of that type and accept Lumen's offer.
+- Add it to `packs = {}` in `lua/config/lumen.lua`, or to a project's `.lumen.lua`.
+- Open a file of that type: Lumen suggests the pack. `:Lumen packs dismiss <name>` stops the suggestion.
+
+A pack that only sets up servers, parsers, Mason tools, formatters and linters takes effect right
+away. One that adds plugins, and disabling a pack, need a restart, which Lumen offers.
 
 To write your own, drop a file in `lua/lumen/packs/` in your config dir and it shows up in the list. The test suite
 checks that every pack is well-formed and that every parser, server, Mason package, formatter and
@@ -449,6 +486,7 @@ LazyVim's, so your muscle memory carries over.
 | key | action | key | action |
 |---|---|---|---|
 | `<leader>rt` | run task | `<leader>rr` / `rq` | re-run last / re-run into quickfix |
+| `<leader>rw` | watch: re-run last task on save | | |
 | `s` / `S` | flash / flash treesitter | `gsa` `gsd` `gsr` | add / delete / replace surrounding |
 | `<A-j>` / `<A-k>` | move line(s) | `gco` / `gcO` | add comment below / above |
 | `<C-s>` | save | `<esc>` | escape & clear search |
@@ -494,17 +532,22 @@ Search everything live with `<leader>sk` or `:Lumen keys`.
 | command | |
 |---|---|
 | `:Lumen` | menu |
-| `:Lumen packs [enable\|disable <name>]` | manage language packs |
+| `:Lumen packs [enable\|disable\|dismiss <name>]` | manage language packs |
 | `:Lumen why` | explain this buffer's LSP / format / lint / parser setup (`<CR>` runs a fix) |
 | `:Lumen doctor [json]` | deep report: binaries, Mason, root trace, capabilities, LSP log · `json` copies it |
 | `:Lumen tasks` | run a project task |
 | `:Lumen update` | snapshot → update (stable or latest channel) → verify → offer rollback |
 | `:Lumen rollback` | restore plugins from a snapshot |
+| `:Lumen news` | what's new in Lumen |
+| `:Lumen project` | edit this project's `.lumen.lua` |
+| `:Lumen trust` | trust this project's `.lumen.lua` and apply it |
 | `:Lumen theme` | toggle night / dawn |
 | `:Lumen config` | edit your config |
 | `:Lumen keys` | search all keymaps |
 | `:Lumen profile` | startup profile |
 | `:Lumen health` | `:checkhealth lumen` |
+
+`:help lumen` has the same reference offline.
 
 ## Theming
 
@@ -554,6 +597,7 @@ Contributions are welcome. Read [AGENTS.md](AGENTS.md) for the project's convent
 git clone https://github.com/xheisenbugx/lumen && cd lumen
 ./install.sh --dev --appname lumen-dev   # run Lumen from your checkout
 ./scripts/test.sh                        # headless smoke suite in an isolated sandbox
+./scripts/test.sh tasks                  # only the checks whose name contains "tasks"
 ./scripts/bench.sh                       # startup benchmark
 stylua .                                 # format
 ```
@@ -562,8 +606,9 @@ stylua .                                 # format
 `.tests/` (the first run installs everything). It covers the colorscheme and both variants,
 accent and `on_highlights`, Catppuccin adaptation, the statusline, tabline, winbar, scrollbar and
 folds, LSP attach, task discovery, `:Lumen why`, update verification, pack integrity, performance
-budgets, WCAG contrast, and a clean startup with no errors. CI runs it on Neovim stable and
-nightly, plus a `stylua --check`.
+budgets, WCAG contrast, and a clean startup with no errors. The checks live in `tests/smoke/`, one
+file per area. CI runs them on Neovim stable and nightly on Linux, and stable on macOS, plus a
+`stylua --check` and a loose startup-time budget.
 
 <details>
 <summary><b>Repository layout</b></summary>
@@ -576,14 +621,17 @@ lua/lumen/
   init.lua               init() at spec time · setup() as the plugin's config
   config.lua             defaults, merged with your lua/config/lumen.lua
   options.lua keymaps.lua autocmds.lua commands.lua health.lua
-  lsp.lua diagnostics.lua tasks.lua why.lua update.lua
+  lsp.lua diagnostics.lua treesitter.lua tasks.lua why.lua update.lua
   packs.lua packs/*.lua  language packs
+  project.lua            per-project .lumen.lua (trusted via Neovim's trust database)
   colors/                palettes, highlight groups, any-colorscheme adapter
   ui/                    statusline, tabline, winbar, scrollbar, folds
   util/                  root detection, helpers (global `Lumen`)
 colors/                  :colorscheme lumen | lumen-night | lumen-dawn
+doc/lumen.txt            :help lumen
+NEWS.md                  what changed, shown after :Lumen update
 starter/                 the template install.sh copies into your config dir
-tests/ scripts/          smoke tests + benchmarks (run against the real starter)
+tests/ scripts/          smoke tests (tests/smoke/<area>.lua) + benchmarks, run against the real starter
 ```
 
 </details>

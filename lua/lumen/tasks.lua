@@ -3,7 +3,7 @@
 --
 -- Sources: package.json (npm/pnpm/yarn/bun), deno.json, Makefile, justfile, Cargo,
 -- go, uv/pytest, composer, mix, gradle, maven, dotnet, zig, cmake, docker compose,
--- plus `tasks = {}` from lua/config/lumen.lua.
+-- .vscode/tasks.json, plus `tasks = {}` from lua/config/lumen.lua and the project's .lumen.lua.
 
 local M = {}
 
@@ -82,7 +82,7 @@ local function find(buf, markers)
   return dir and vim.fs.normalize(dir) or nil
 end
 
----@type table<string, fun(dir:string, add:fun(name:string, cmd:string))>
+---@type table<string, fun(dir:string, add:fun(name:string, cmd:string, cwd?:string))>
 local providers = {}
 
 providers["package.json"] = function(dir, add)
@@ -210,7 +210,77 @@ providers["dotnet"] = function(_, add)
   add("run", "dotnet run")
 end
 
+-- ${…} variables VS Code tasks use; unknown ones are left as they are
+---@param s string
+---@param dir string the folder holding .vscode/
+local function vscode_vars(s, dir)
+  -- the root comes back as a real path (macOS: /var → /private/var): compare like with like
+  local name = vim.api.nvim_buf_get_name(0)
+  local file = name ~= "" and vim.fs.normalize(vim.uv.fs_realpath(name) or name) or ""
+  local vars = {
+    workspaceFolder = dir,
+    workspaceRoot = dir,
+    workspaceFolderBasename = vim.fs.basename(dir),
+    cwd = vim.uv.cwd(),
+    file = file,
+    fileDirname = vim.fs.dirname(file),
+    fileBasename = vim.fs.basename(file),
+    fileBasenameNoExtension = vim.fn.fnamemodify(file, ":t:r"),
+    relativeFile = file:sub(1, #dir + 1) == dir .. "/" and file:sub(#dir + 2) or file,
+    pathSeparator = "/",
+  }
+  return (
+    s:gsub("%${([%w:_]+)}", function(name)
+      local env = name:match("^env:(.+)$")
+      if env then
+        return vim.env[env] or ""
+      end
+      return vars[name]
+    end)
+  )
+end
+
+--- `args` items are strings or { value = "…", quoting = "…" }
+---@param args any[]
+local function vscode_args(args, dir)
+  local out = {}
+  for _, a in ipairs(type(args) == "table" and args or {}) do
+    local v = vscode_vars(type(a) == "table" and tostring(a.value or "") or tostring(a), dir)
+    -- quote what the shell would split or expand, like VS Code does
+    out[#out + 1] = v:find("[%s'\"$`\\|&;<>()*?]") and vim.fn.shellescape(v) or v
+  end
+  return out
+end
+
+providers[".vscode"] = function(dir, add)
+  local data = json(dir .. "/.vscode/tasks.json") or {}
+  local os_key = vim.fn.has("mac") == 1 and "osx" or (vim.fn.has("win32") == 1 and "windows" or "linux")
+  for _, t in ipairs(data.tasks or {}) do
+    -- platform sections override the task's own fields
+    t = vim.tbl_deep_extend("force", t, type(t[os_key]) == "table" and t[os_key] or {})
+    local cmd
+    if t.type == "npm" and t.script then
+      cmd = "npm run " .. t.script
+      if t.path then
+        t.options = vim.tbl_extend("force", t.options or {}, { cwd = dir .. "/" .. t.path })
+      end
+    elseif (t.type == "shell" or t.type == "process" or t.type == nil) and type(t.command) == "string" then
+      cmd = table.concat(vim.list_extend({ vscode_vars(t.command, dir) }, vscode_args(t.args, dir)), " ")
+    end
+    local name = t.label or t.script or cmd
+    if cmd and name then
+      local cwd = type(t.options) == "table" and t.options.cwd
+      add(name, cmd, cwd and vim.fs.normalize(vscode_vars(cwd, dir)) or nil)
+    end
+  end
+end
+
 local markers = {
+  [".vscode"] = function(name, path)
+    -- `path` is the folder holding the item on some Neovim versions, the item itself on others
+    local dir = path:find("[/\\]%.vscode$") and path or (path .. "/.vscode")
+    return name == ".vscode" and vim.uv.fs_stat(dir .. "/tasks.json") ~= nil
+  end,
   ["package.json"] = "package.json",
   ["deno.json"] = { "deno.json", "deno.jsonc" },
   ["Makefile"] = "Makefile",
@@ -236,8 +306,8 @@ function M.discover(buf)
   buf = buf or vim.api.nvim_get_current_buf()
   local tasks = {}
   local function collect(source, dir)
-    local ok, err = pcall(providers[source], dir, function(name, cmd)
-      tasks[#tasks + 1] = { name = name, cmd = cmd, cwd = dir, source = source }
+    local ok, err = pcall(providers[source], dir, function(name, cmd, cwd)
+      tasks[#tasks + 1] = { name = name, cmd = cmd, cwd = cwd or dir, source = source }
     end)
     if not ok then
       Lumen.warn(("tasks: %s provider failed: %s"):format(source, err))
@@ -251,6 +321,17 @@ function M.discover(buf)
   end
   for _, t in ipairs(require("lumen.config").tasks or {}) do
     tasks[#tasks + 1] = { name = t.name or t.cmd, cmd = t.cmd, cwd = t.cwd or Lumen.root(), source = "config" }
+  end
+  local project = require("lumen.project")
+  for _, t in ipairs(project.tasks()) do
+    if type(t) == "table" and type(t.cmd) == "string" then
+      local cwd = t.cwd and vim.fs.normalize(t.cwd) or project.root()
+      -- relative to the .lumen.lua, not to wherever Neovim was started
+      if cwd and not cwd:find("^/") and project.root() then
+        cwd = project.root() .. "/" .. cwd
+      end
+      tasks[#tasks + 1] = { name = t.name or t.cmd, cmd = t.cmd, cwd = cwd or Lumen.root(), source = "project" }
+    end
   end
   table.sort(tasks, function(a, b)
     if a.source ~= b.source then
@@ -430,6 +511,45 @@ function M.status()
     names[#names + 1] = r.name
   end
   return table.concat(names, ", ")
+end
+
+-- ── watch: re-run a task in the background whenever a file in its project is saved ──
+
+---@type lumen.Task?
+M.watching = nil
+local watch_group
+
+---@param task? lumen.Task the task to watch (default: the project's last task); nil toggles off
+function M.watch(task)
+  if watch_group then
+    vim.api.nvim_del_augroup_by_id(watch_group)
+    watch_group = nil
+    local was = M.watching
+    M.watching = nil
+    vim.cmd.redrawstatus()
+    if not task then
+      return Lumen.notify(("Stopped watching %s"):format(was and was.name or "the task"))
+    end
+  end
+  task = task or M.last()
+  if not task then
+    return Lumen.warn("No task to watch yet — run one first (<leader>rt)")
+  end
+  task = normalize(task)
+  M.watching = task
+  watch_group = vim.api.nvim_create_augroup("lumen_task_watch", { clear = true })
+  vim.api.nvim_create_autocmd("BufWritePost", {
+    group = watch_group,
+    callback = function(ev)
+      local file = vim.fs.normalize(vim.fn.fnamemodify(ev.match, ":p"))
+      -- only saves inside the task's folder; a second save while it runs is skipped
+      if file:sub(1, #task.cwd + 1) == task.cwd .. "/" and not M.running[task.cwd .. task.cmd] then
+        M.run_background(task)
+      end
+    end,
+  })
+  vim.cmd.redrawstatus()
+  Lumen.notify(("Watching: `%s` re-runs on every save in %s"):format(task.name, vim.fn.fnamemodify(task.cwd, ":~")))
 end
 
 ---@param task lumen.Task

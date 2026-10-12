@@ -134,6 +134,8 @@ function M._install(pkgs, on_done)
         vim.schedule(function()
           left = left - 1
           if success then
+            -- for caches of what's on PATH (nvim-lint's runnable linters)
+            vim.api.nvim_exec_autocmds("User", { pattern = "LumenToolInstalled", data = pkg.name, modeline = false })
             if on_done then
               on_done(pkg.name)
             end
@@ -165,7 +167,7 @@ function M.mason_path(mopts)
     return false
   end
   local sep = vim.fn.has("win32") == 1 and ";" or ":"
-  local bin = (mopts.install_root_dir or (vim.fn.stdpath("data") .. "/mason")) .. "/bin"
+  local bin = M.mason_root(mopts) .. "/bin"
   local path = vim.env.PATH or ""
   if not (sep .. path .. sep):find(sep .. bin .. sep, 1, true) then
     vim.env.PATH = mopts.PATH == "append" and (path .. sep .. bin) or (bin .. sep .. path)
@@ -173,24 +175,57 @@ function M.mason_path(mopts)
   return true
 end
 
-function M.setup(opts)
-  require("lumen.diagnostics").setup()
-  M.mason_path()
+--- Mason's install root (the `install_root_dir` from its spec, or the default)
+---@param mopts? table mason.nvim opts (resolved from its spec when omitted)
+function M.mason_root(mopts)
+  if not mopts then
+    local plugin = require("lazy.core.config").plugins["mason.nvim"]
+    mopts = plugin and require("lazy.core.plugin").values(plugin, "opts", false) or {}
+  end
+  return vim.fs.normalize(mopts.install_root_dir or (vim.fn.stdpath("data") .. "/mason"))
+end
 
-  vim.api.nvim_create_autocmd("LspAttach", {
-    group = vim.api.nvim_create_augroup("lumen_lsp_attach", { clear = true }),
-    callback = function(ev)
-      local client = vim.lsp.get_client_by_id(ev.data.client_id)
-      if client then
-        on_attach(client, ev.buf)
-      end
-    end,
-  })
+--- Server tables are data, written before Mason's install root is known (packs are read while
+--- lazy.nvim builds specs): strings starting with `$MASON/` resolve against it here.
+---@param value any
+---@param root string
+function M.expand_mason(value, root)
+  if type(value) == "string" then
+    return value:find("^%$MASON/") and (root .. value:sub(7)) or value
+  elseif type(value) == "table" then
+    local out = {}
+    for k, v in pairs(value) do
+      out[k] = M.expand_mason(v, root)
+    end
+    return setmetatable(out, getmetatable(value))
+  end
+  return value
+end
 
+--- whether `name`'s binary is available: on PATH for a plain `cmd`, or installed by Mason for a
+--- function `cmd` (lspconfig resolves those when the server starts, so there's no binary to probe)
+---@param name string
+---@param pkg string mason package
+local function server_installed(name, pkg)
+  local cmd = (vim.lsp.config[name] or {}).cmd
+  if type(cmd) == "table" and type(cmd[1]) == "string" then
+    return vim.fn.executable(cmd[1]) == 1
+  end
+  local ok, registry = pcall(require, "mason-registry")
+  return ok and registry.is_installed(pkg)
+end
+
+local did_setup = false
+
+--- Configure and enable servers. Called with the merged nvim-lspconfig opts at startup, and again
+--- by packs enabled while Neovim runs (`:Lumen packs enable …`).
+---@param servers table<string, table|false>
+function M.add(servers)
   local mason_servers, enable = {}, {}
-  for name, server in pairs(opts.servers or {}) do
+  local root = M.mason_root()
+  for name, server in pairs(servers or {}) do
     if server and server.enabled ~= false then
-      server = vim.deepcopy(server)
+      server = M.expand_mason(vim.deepcopy(server), root)
       if server.mason ~= false then
         mason_servers[#mason_servers + 1] = name
       end
@@ -202,6 +237,9 @@ function M.setup(opts)
       end
       enable[#enable + 1] = name
     end
+  end
+  if #enable == 0 then
+    return
   end
 
   -- After startup, vim.lsp.enable() fires FileType for open buffers. We usually get here from
@@ -222,26 +260,36 @@ function M.setup(opts)
     pcall(require, "mason")
     local to_install, pkg_to_server = {}, {}
     for _, name in ipairs(mason_servers) do
-      local cmd = (vim.lsp.config[name] or {}).cmd
-      local exe = type(cmd) == "table" and cmd[1] or nil
-      if not exe or vim.fn.executable(exe) == 0 then
-        local pkg = M.package_for(name)
-        if pkg then
-          to_install[#to_install + 1] = pkg
-          pkg_to_server[pkg] = name
-        end
+      local pkg = M.package_for(name)
+      if pkg and not server_installed(name, pkg) then
+        to_install[#to_install + 1] = pkg
+        pkg_to_server[pkg] = name
       end
     end
     M._install(to_install, function(pkg)
-      local server = pkg_to_server[pkg]
-      local fts = (vim.lsp.config[server] or {}).filetypes or {}
-      for _, b in ipairs(vim.api.nvim_list_bufs()) do
-        if vim.api.nvim_buf_is_loaded(b) and vim.tbl_contains(fts, vim.bo[b].filetype) then
-          pcall(vim.api.nvim_exec_autocmds, "FileType", { group = "nvim.lsp.enable", buffer = b })
-        end
-      end
+      -- enabling again re-runs vim.lsp's FileType handler on every open buffer, so the server
+      -- attaches to the files that were waiting for it
+      pcall(vim.lsp.enable, pkg_to_server[pkg])
     end)
   end, 300)
+end
+
+function M.setup(opts)
+  if not did_setup then
+    did_setup = true
+    require("lumen.diagnostics").setup()
+    M.mason_path()
+    vim.api.nvim_create_autocmd("LspAttach", {
+      group = vim.api.nvim_create_augroup("lumen_lsp_attach", { clear = true }),
+      callback = function(ev)
+        local client = vim.lsp.get_client_by_id(ev.data.client_id)
+        if client then
+          on_attach(client, ev.buf)
+        end
+      end,
+    })
+  end
+  M.add(opts.servers)
 end
 
 return M

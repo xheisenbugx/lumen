@@ -87,6 +87,10 @@ autocmd("FileType", {
   callback = function(ev)
     vim.bo[ev.buf].buflisted = false
     vim.schedule(function()
+      -- the buffer may be gone by now (`:checkhealth` then `:bwipeout` in one go)
+      if not vim.api.nvim_buf_is_valid(ev.buf) then
+        return
+      end
       vim.keymap.set("n", "q", function()
         -- the last window can't be closed (e.g. `nvim +help`): deleting the buffer still works
         pcall(vim.cmd.close)

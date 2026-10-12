@@ -184,6 +184,8 @@ local function extras()
   if tasks and next(tasks.running) then
     local frame = spinner[math.floor(vim.uv.hrtime() / 1e8) % #spinner + 1]
     out[#out + 1] = hl("LumenStlTask", frame .. " " .. esc(tasks.status()))
+  elseif tasks and tasks.watching then
+    out[#out + 1] = hl("LumenStlTask", "\u{f0208} " .. esc(tasks.watching.name))
   end
   if vim.api.nvim_mcursor then
     -- extmark queries scan the whole mark tree (~0.3ms on busy buffers): sample at most every 250ms

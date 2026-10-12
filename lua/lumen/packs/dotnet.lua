@@ -2,6 +2,7 @@
 return {
   desc = "C# / F# (omnisharp, fsautocomplete, csharpier, fantomas, netcoredbg)",
   ft = { "cs", "fsharp" },
+  requires = { "dotnet" },
   parsers = { "c_sharp", "fsharp" },
   servers = {
     omnisharp = {

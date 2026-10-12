@@ -1,9 +1,10 @@
 -- :Lumen update — updates with a safety net.
 --   1. snapshot lazy-lock.json
---   2. sync plugins, update parsers & Mason registries
+--   2. sync plugins, update parsers (to the revisions the new nvim-treesitter pins) & Mason registries
 --   3. verify in a fresh headless Neovim: every plugin loads, no errors
 --   4. if verification fails, offer a one-key rollback to the snapshot
--- :Lumen rollback — restore any earlier snapshot.
+--   5. show what's new in Lumen (NEWS.md) when Lumen itself moved
+-- :Lumen rollback — restore any earlier snapshot (parsers follow nvim-treesitter back).
 
 local M = {}
 
@@ -107,8 +108,12 @@ function M.selftest()
     end
     return notify(msg, level, opts)
   end
-  vim.cmd.edit(vim.fn.stdpath("config") .. "/init.lua")
-  vim.defer_fn(function()
+  local function finish()
+    io.stdout:write(vim.json.encode({ errors = errors }) .. "\n")
+    vim.cmd(#errors == 0 and "qa!" or "cquit 1")
+  end
+  local function run()
+    vim.cmd.edit(vim.fn.stdpath("config") .. "/init.lua")
     for _, plugin in pairs(require("lazy.core.config").plugins) do
       local ok, err = pcall(require("lazy").load, { plugins = { plugin.name } })
       if not ok then
@@ -121,12 +126,36 @@ function M.selftest()
         errors[#errors + 1] = "lumen " .. mod .. ": " .. tostring(err)
       end
     end
-    -- v:errmsg is not used: plugins routinely leave errors there that they caught themselves
-    vim.defer_fn(function()
-      io.stdout:write(vim.json.encode({ errors = errors }) .. "\n")
-      vim.cmd(#errors == 0 and "qa!" or "cquit 1")
-    end, 1500)
-  end, 1000)
+    -- let scheduled work (plugin setups, FileType handlers, highlighting) run: its errors are
+    -- printed to stderr, which verify() reads. v:errmsg is not used: plugins routinely leave
+    -- errors there that they caught themselves.
+    vim.defer_fn(finish, 1000)
+  end
+  -- start once startup is over rather than after a guessed delay
+  if vim.v.vim_did_enter == 1 then
+    vim.schedule(run)
+  else
+    vim.api.nvim_create_autocmd("VimEnter", { once = true, callback = vim.schedule_wrap(run) })
+  end
+end
+
+--- error lines a headless Neovim printed (it writes error messages to stderr): Lua errors in
+--- autocmds and callbacks never reach vim.notify
+---@param stderr string
+---@return string[]
+function M.stderr_errors(stderr)
+  local out, keep = {}, false
+  for line in (stderr or ""):gmatch("[^\r\n]+") do
+    if line:find("^E%d+:") or line:find("^Error") or line:find("^Lua callback") then
+      keep = true
+    elseif not line:find("^%s") and not line:find("^stack traceback") then
+      keep = false
+    end
+    if keep then
+      out[#out + 1] = line
+    end
+  end
+  return out
 end
 
 ---@param cb fun(ok:boolean, errors:string[])
@@ -140,6 +169,7 @@ function M.verify(cb)
         errors = data.errors
       end
     end
+    vim.list_extend(errors, M.stderr_errors(out.stderr))
     if out.code ~= 0 and #errors == 0 then
       errors = { ("headless Neovim exited with code %d"):format(out.code), out.stderr or "" }
     end
@@ -147,6 +177,25 @@ function M.verify(cb)
       cb(out.code == 0 and #errors == 0, errors)
     end)
   end)
+end
+
+--- Bring parsers in line with the installed nvim-treesitter (it pins their revisions), then `cb`.
+--- Runs after plugins move either way: an update, and a rollback, which would otherwise leave
+--- parsers newer than the queries that came back with nvim-treesitter.
+---@param cb? fun()
+---@param summary? boolean report "All parsers are up-to-date" and such (default true)
+function M.update_parsers(cb, summary)
+  cb = cb or function() end
+  local ok, nts = pcall(require, "nvim-treesitter")
+  if not ok or type(nts.update) ~= "function" then
+    return cb()
+  end
+  local task_ok, task = pcall(nts.update, nil, { summary = summary ~= false })
+  if task_ok and type(task) == "table" and type(task.await) == "function" then
+    task:await(vim.schedule_wrap(cb))
+  else
+    cb()
+  end
 end
 
 ---@param path string snapshot to restore
@@ -159,20 +208,25 @@ function M.restore(path)
   Lumen.notify("Restoring plugins from " .. vim.fn.fnamemodify(path, ":t") .. "…")
   -- blocking, for the same reason as step(): see above
   require("lazy.manage").restore({ wait = true, show = true })
-  vim.schedule(function()
+  M.update_parsers(function()
     require("lumen.packs").prompt_restart("Plugins rolled back")
-  end)
+  end, false)
 end
+
+-- Lumen's version before this update, for "what's new" afterwards
+local old_version ---@type string?
 
 --- after plugins changed: parsers, Mason, then verify in a clean Neovim and offer rollback
 ---@param before string? lockfile content before the update
 ---@param snap string? snapshot path
 local function finish(before, snap)
-  pcall(vim.cmd, "TSUpdate")
   pcall(vim.cmd, "MasonUpdate")
-  vim.defer_fn(function()
+  -- the verification must see the parsers this update ends with, so it waits for them
+  M.update_parsers(function()
     local after = read(lockfile)
     local names = changed(before, after)
+    M.show_news(old_version)
+    old_version = nil
     if #names == 0 then
       return Lumen.notify("✓ Everything is up to date")
     end
@@ -202,7 +256,7 @@ local function finish(before, snap)
         end
       )
     end)
-  end, 500)
+  end)
 end
 
 --- Apply the vetted versions to the user's lockfile.
@@ -293,6 +347,7 @@ local function stable(before, snap)
 end
 
 function M.update()
+  old_version = require("lumen").version
   local before = read(lockfile)
   local snap = M.snapshot()
   local channel = require("lumen.config").update_channel or "stable"
@@ -301,6 +356,83 @@ function M.update()
     latest(before, snap)
   else
     stable(before, snap)
+  end
+end
+
+-- ── what's new ───────────────────────────────────────────────
+
+local function lumen_dir()
+  local plugin = require("lazy.core.config").plugins.lumen
+  return plugin and plugin.dir
+end
+
+--- the version of Lumen on disk (after an update it's newer than the running one)
+---@return string?
+function M.installed_version()
+  local dir = lumen_dir()
+  return dir and (read(dir .. "/lua/lumen/init.lua") or ""):match('M%.version = "([^"]+)"') or nil
+end
+
+--- NEWS.md sections (`## <version> …`), newest first
+---@param text string
+---@return {version:string, lines:string[]}[]
+function M.parse_news(text)
+  local sections, cur = {}, nil
+  for line in (text .. "\n"):gmatch("(.-)\r?\n") do
+    local v = line:match("^## v?(%d+%.%d+%.%d+)")
+    if v then
+      cur = { version = v, lines = { line } }
+      sections[#sections + 1] = cur
+    elseif cur then
+      cur.lines[#cur.lines + 1] = line
+    end
+  end
+  return sections
+end
+
+--- the NEWS.md lines for versions newer than `since` (all of them when it's nil)
+---@param since? string
+---@return string[]
+function M.news_since(since)
+  local dir = lumen_dir()
+  local lines = {}
+  for _, section in ipairs(M.parse_news(dir and read(dir .. "/NEWS.md") or "")) do
+    local ok, newer = pcall(function()
+      return not since or vim.version.gt(section.version, since)
+    end)
+    if ok and newer then
+      vim.list_extend(lines, section.lines)
+    end
+  end
+  return lines
+end
+
+--- :Lumen news — what's new, newest first
+---@param since? string only versions after this one
+function M.news(since)
+  local lines = M.news_since(since)
+  if #lines == 0 then
+    return Lumen.notify("No news")
+  end
+  table.insert(lines, 1, "# What's new in Lumen")
+  table.insert(lines, 2, "")
+  vim.cmd("botright new")
+  local buf = vim.api.nvim_get_current_buf()
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.bo[buf].buftype, vim.bo[buf].bufhidden, vim.bo[buf].modifiable = "nofile", "wipe", false
+  vim.bo[buf].filetype = "markdown"
+  vim.keymap.set("n", "q", "<cmd>close<cr>", { buffer = buf, silent = true, desc = "Close" })
+end
+
+--- after an update: the news since the version that was running, if Lumen moved
+---@param old? string
+function M.show_news(old)
+  local new = M.installed_version()
+  local ok, newer = pcall(function()
+    return old and new and vim.version.gt(new, old)
+  end)
+  if ok and newer and #M.news_since(old) > 0 then
+    M.news(old)
   end
 end
 

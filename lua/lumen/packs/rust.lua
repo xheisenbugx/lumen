@@ -2,6 +2,7 @@
 return {
   desc = "Rust (rust-analyzer, crates.nvim)",
   ft = { "rust" },
+  requires = { "cargo" },
   parsers = { "rust", "ron", "toml" },
   servers = {
     rust_analyzer = {

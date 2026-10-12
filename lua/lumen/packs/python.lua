@@ -2,6 +2,7 @@
 return {
   desc = "Python (basedpyright, ruff)",
   ft = { "python" },
+  requires = { { "python3", "python" } },
   parsers = { "python", "rst", "ninja" },
   servers = {
     basedpyright = {

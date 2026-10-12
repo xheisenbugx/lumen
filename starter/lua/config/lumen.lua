@@ -1,5 +1,6 @@
 -- Lumen settings. Every key is optional — delete what you don't change.
--- All options and defaults: lua/lumen/config.lua in the Lumen repo.
+-- All options and defaults: lua/lumen/config.lua in the Lumen repo, or :help lumen-config.
+-- Per-project overrides go in a `.lumen.lua` at the project root (:Lumen project, :help lumen-project).
 return {
   -- "lumen" (follows 'background'), "lumen-night", "lumen-dawn",
   -- "catppuccin" (latte/mocha by 'background'), "catppuccin-latte|frappe|macchiato|mocha",
@@ -12,7 +13,8 @@ return {
   -- colors = { night = { bg = "#0b0d12" } },               -- palette overrides
   -- on_highlights = function(hl, p) hl.Comment = { fg = p.teal, italic = true } end,
 
-  -- language packs — browse them all with :Lumen packs (that picker remembers its own choices)
+  -- language packs — browse them all with :Lumen packs (that picker remembers its own choices).
+  -- Packs without extra plugins turn on right away, no restart needed.
   packs = { "lua", "json", "yaml", "toml", "markdown", "bash" },
 
   format_on_save = true,
@@ -25,6 +27,7 @@ return {
   smooth_scroll = true,
   tmux_navigation = true,
 
-  -- extra tasks for <leader>rt next to the auto-discovered ones
+  -- extra tasks for <leader>rt next to the auto-discovered ones (package.json, Makefile, cargo,
+  -- .vscode/tasks.json…); <leader>rw re-runs the last task on every save
   -- tasks = { { name = "deploy", cmd = "./scripts/deploy.sh" } },
 }

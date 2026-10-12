@@ -19,6 +19,7 @@ local inlay = {
 return {
   desc = "TypeScript / JavaScript (vtsls, eslint, biome|prettier)",
   ft = { "typescript", "typescriptreact", "javascript", "javascriptreact" },
+  requires = { "node", "npm" },
   parsers = { "javascript", "typescript", "tsx", "jsdoc" },
   servers = {
     vtsls = {

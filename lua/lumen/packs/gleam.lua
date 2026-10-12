@@ -2,6 +2,7 @@
 return {
   desc = "Gleam (built-in language server)",
   ft = { "gleam" },
+  requires = { "gleam" },
   parsers = { "gleam" },
   servers = { gleam = { mason = false } },
   formatters = { gleam = { "gleam" } },

@@ -2,7 +2,9 @@
 return {
   desc = "Astro",
   ft = { "astro" },
-  parsers = { "astro", "typescript", "css" },
+  requires = { "node", "npm" },
+  extends = { "typescript" },
+  parsers = { "astro", "css" },
   servers = { astro = {} },
   tools = { "prettierd" },
   formatters = { astro = { "prettierd", "prettier", stop_after_first = true } },
