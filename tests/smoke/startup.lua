@@ -3,6 +3,20 @@
 return function(t)
   local check, wait, child, fake_server, SLOW = t.check, t.wait, t.child, t.fake_server, t.SLOW
 
+  --- run `:checkhealth lumen` and return its text. Nightly fills the buffer asynchronously, so wait
+  --- for the last section ("Updates" reports the lazy.nvim lockfile check either way)
+  local function health()
+    vim.cmd("checkhealth lumen")
+    local buf = vim.api.nvim_get_current_buf()
+    local function text()
+      return table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+    end
+    wait(10000 * SLOW, function()
+      return text():find("lockfile internals", 1, true) ~= nil
+    end)
+    return text()
+  end
+
   check("opening a file after startup (dashboard → :e) gets filetype, treesitter, LSP", function()
     -- regression: LazyFile loading lspconfig mid-BufReadPost used to swallow filetype detection
     local probe = [[
@@ -217,8 +231,8 @@ return function(t)
 
   check(":Lumen command + health", function()
     assert(vim.fn.exists(":Lumen") == 2)
-    vim.cmd("checkhealth lumen")
-    local text = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "\n")
+    local text = health()
+    assert(text:find("Lumen", 1, true), "empty health report")
     assert(not text:find("ERROR"), text)
     vim.cmd("bwipeout")
   end)
@@ -313,10 +327,7 @@ return function(t)
     packs.missing = function(p)
       return p == packs.get("lua") and { "lumen-fake-toolchain" } or {}
     end
-    local ok, text = pcall(function()
-      vim.cmd("checkhealth lumen")
-      return table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "\n")
-    end)
+    local ok, text = pcall(health)
     packs.missing = orig
     pcall(vim.cmd, "bwipeout")
     assert(ok, text)
