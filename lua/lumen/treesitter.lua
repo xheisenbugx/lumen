@@ -111,7 +111,8 @@ end
 ---@param langs string[]
 function M.ensure(langs)
   local missing = M.missing(langs)
-  if #missing == 0 or vim.fn.executable("tree-sitter") == 0 then
+  -- the `:Lumen update` check is a throwaway Neovim: no downloads from it
+  if #missing == 0 or vim.fn.executable("tree-sitter") == 0 or require("lumen.lsp").selftest() then
     return
   end
   M.install(missing, function()

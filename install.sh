@@ -60,7 +60,9 @@ done
 case "$appname" in
   . | .. | */* | *[[:space:]]*) die "invalid --appname '$appname' (use a plain name such as 'lumen')" ;;
 esac
+# it's written into init.lua as a Lua string: exactly owner/name, GitHub's characters only
 case "$repo" in
+  */*/* | /* | */ | *[!A-Za-z0-9._/-]*) die "invalid --repo '$repo' (expected owner/name)" ;;
   */*) ;;
   *) die "invalid --repo '$repo' (expected owner/name)" ;;
 esac

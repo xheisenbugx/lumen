@@ -165,7 +165,13 @@ return {
       { "<leader>sR", function() Snacks.picker.resume() end, desc = "Resume last picker" },
       { "<leader>su", function() Snacks.picker.undo() end, desc = "Undo history" },
       -- git
-      { "<leader>gg", function() Snacks.lazygit({ cwd = Lumen.root.git() }) end, desc = "Lazygit" },
+      { "<leader>gg", function()
+        -- without lazygit, Snacks throws a raw "not executable" Lua error
+        if vim.fn.executable("lazygit") == 0 then
+          return Lumen.warn("lazygit isn't installed: https://github.com/jesseduffield/lazygit#installation")
+        end
+        Snacks.lazygit({ cwd = Lumen.root.git() })
+      end, desc = "Lazygit" },
       { "<leader>gs", function() Snacks.picker.git_status() end, desc = "Status" },
       { "<leader>gS", function() Snacks.picker.git_stash() end, desc = "Stash" },
       { "<leader>gl", function() Snacks.picker.git_log({ cwd = Lumen.root.git() }) end, desc = "Log" },
@@ -178,8 +184,10 @@ return {
       { "<leader>ss", function() Snacks.picker.lsp_symbols() end, desc = "Symbols" },
       { "<leader>sS", function() Snacks.picker.lsp_workspace_symbols() end, desc = "Workspace symbols" },
       { "<leader>cR", function() Snacks.rename.rename_file() end, desc = "Rename file" },
-      { "]]", function() Snacks.words.jump(vim.v.count1) end, desc = "Next reference", mode = { "n", "t" } },
-      { "[[", function() Snacks.words.jump(-vim.v.count1) end, desc = "Prev reference", mode = { "n", "t" } },
+      -- normal mode only: in terminal mode they swallowed `[[`/`]]` typed into shells and made every
+      -- `[`/`]` wait for 'timeoutlen' (lazygit tabs)
+      { "]]", function() Snacks.words.jump(vim.v.count1) end, desc = "Next reference" },
+      { "[[", function() Snacks.words.jump(-vim.v.count1) end, desc = "Prev reference" },
       { "<leader>un", function() Snacks.notifier.hide() end, desc = "Dismiss notifications" },
     },
   },
@@ -244,7 +252,11 @@ return {
       {
         "<leader>?",
         function()
-          require("which-key").show({ global = false })
+          -- when this key is what loads which-key, its setup finishes on the next tick
+          -- (vim.schedule): showing right away indexes config it hasn't built yet
+          vim.schedule(function()
+            require("which-key").show({ global = false })
+          end)
         end,
         desc = "Buffer keymaps",
       },

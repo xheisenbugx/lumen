@@ -9,7 +9,7 @@
 --               autocmds, commands and Lumen's UI.
 local M = {}
 
-M.version = "0.3.0"
+M.version = "0.3.1"
 
 local did_init = false
 

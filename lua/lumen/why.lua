@@ -252,10 +252,15 @@ function M.report(buf, opts)
     item(INFO, "no extra linters (diagnostics come from language servers)")
   end
   for _, l in ipairs(linters) do
-    local def = lint.linters[l]
-    def = type(def) == "function" and def() or def
-    local cmd = def and def.cmd
-    cmd = type(cmd) == "function" and cmd() or cmd
+    -- linter definitions and their `cmd` can be functions that throw: one bad linter must not
+    -- take the whole report down
+    local resolved, cmd = pcall(function()
+      local def = lint.linters[l]
+      def = type(def) == "function" and def() or def
+      local c = def and def.cmd
+      return type(c) == "function" and c() or c
+    end)
+    cmd = resolved and type(cmd) == "string" and cmd or nil
     if cmd and vim.fn.executable(cmd) == 1 then
       item(OK, ("`%s` runs on save / read / insert-leave"):format(l))
     else

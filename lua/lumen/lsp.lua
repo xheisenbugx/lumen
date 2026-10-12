@@ -98,11 +98,19 @@ function M.install(pkgs, on_done)
 end
 
 function M._install(pkgs, on_done)
-  if #pkgs == 0 then
+  -- the `:Lumen update` check runs a throwaway Neovim: an install it starts dies with it, and
+  -- leaves Mason's staging lockfile behind ("Lockfile exists" on the next real install)
+  if #pkgs == 0 or M.selftest() then
     return
   end
+  -- packs share tools (prettierd): a name twice in one batch makes Mason throw "already installing"
+  pkgs = vim.fn.uniq(vim.fn.sort(vim.deepcopy(pkgs))) --[[@as string[] ]]
   local registry = require("mason-registry")
-  registry.refresh(function()
+  registry.refresh(vim.schedule_wrap(function(ok)
+    if not ok then
+      -- offline, or the registry download failed: say that, not "unknown package" per tool
+      return Lumen.error("Couldn't refresh Mason's registry — see :MasonLog", { id = "lumen.mason.registry" })
+    end
     local todo = {} ---@type table[]
     for _, name in ipairs(pkgs) do
       local ok, pkg = pcall(registry.get_package, name)
@@ -152,7 +160,12 @@ function M._install(pkgs, on_done)
         end)
       end)
     end
-  end)
+  end))
+end
+
+--- whether this Neovim is the `:Lumen update` verification (see update.verify)
+function M.selftest()
+  return vim.env.LUMEN_SELFTEST == "1"
 end
 
 --- Put Mason's bin dir on PATH (what mason.setup() does), so servers it installed can start
@@ -256,21 +269,32 @@ function M.add(servers)
 
   -- resolve missing servers → mason packages after startup
   vim.defer_fn(function()
+    if M.selftest() then
+      return
+    end
     -- load mason now (its config installs missing tools)
     pcall(require, "mason")
-    local to_install, pkg_to_server = {}, {}
-    for _, name in ipairs(mason_servers) do
-      local pkg = M.package_for(name)
-      if pkg and not server_installed(name, pkg) then
-        to_install[#to_install + 1] = pkg
-        pkg_to_server[pkg] = name
-      end
+    local ok, registry = pcall(require, "mason-registry")
+    if not ok then
+      return
     end
-    M._install(to_install, function(pkg)
-      -- enabling again re-runs vim.lsp's FileType handler on every open buffer, so the server
-      -- attaches to the files that were waiting for it
-      pcall(vim.lsp.enable, pkg_to_server[pkg])
-    end)
+    -- server → package names come from the registry: on a first launch it isn't downloaded yet,
+    -- and every lookup would come back empty (no server installed until a restart)
+    registry.refresh(vim.schedule_wrap(function()
+      local to_install, pkg_to_server = {}, {}
+      for _, name in ipairs(mason_servers) do
+        local pkg = M.package_for(name)
+        if pkg and not server_installed(name, pkg) then
+          to_install[#to_install + 1] = pkg
+          pkg_to_server[pkg] = name
+        end
+      end
+      M._install(to_install, function(pkg)
+        -- enabling again re-runs vim.lsp's FileType handler on every open buffer, so the server
+        -- attaches to the files that were waiting for it
+        pcall(vim.lsp.enable, pkg_to_server[pkg])
+      end)
+    end))
   end, 300)
 end
 

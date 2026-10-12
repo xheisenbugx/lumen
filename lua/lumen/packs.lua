@@ -359,7 +359,14 @@ end
 function M.toggle(name, on)
   local before = M.enabled()
   M.set(name, on)
-  local after = M.enabled()
+  local after, via = M.enabled()
+  -- still on: it comes from the project's .lumen.lua, or another pack extends it
+  if not on and after[name] then
+    local why = via[name] and ("the `%s` pack extends it"):format(via[name])
+      or (vim.tbl_contains(require("lumen.project").packs(), name) and "this project's .lumen.lua enables it")
+      or "it is still enabled"
+    Lumen.warn(("Pack `%s` stays on: %s"):format(name, why))
+  end
   M.changed(before, after)
 end
 

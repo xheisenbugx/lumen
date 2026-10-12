@@ -5,6 +5,14 @@ return function(t)
 
   --- run `:checkhealth lumen` and return its text. Nightly fills the buffer asynchronously, so wait
   --- for the last section ("Updates" reports the lazy.nvim lockfile check either way)
+  --- let a language server finish starting for the current buffer before a test wipes it: vim.lsp
+  --- resolves the root on a later tick and errors on a buffer that's gone (a Neovim race)
+  local function settle_lsp()
+    wait(5000 * SLOW, function()
+      return #vim.lsp.get_clients({ bufnr = 0 }) > 0
+    end)
+  end
+
   local function health()
     vim.cmd("checkhealth lumen")
     local buf = vim.api.nvim_get_current_buf()
@@ -204,7 +212,18 @@ return function(t)
     local tmp = vim.fn.tempname()
     vim.fn.mkdir(tmp, "p")
     local env = { XDG_CONFIG_HOME = tmp, XDG_DATA_HOME = tmp, XDG_STATE_HOME = tmp, XDG_CACHE_HOME = tmp }
-    for _, args in ipairs({ { "--appname", "" }, { "--appname" }, { "--appname", "../x" }, { "--repo", "x" }, { "-z" } }) do
+    -- (a --repo with a quote, an extra slash or a leading slash broke the generated init.lua)
+    for _, args in ipairs({
+      { "--appname", "" },
+      { "--appname" },
+      { "--appname", "../x" },
+      { "--repo", "x" },
+      { "--repo", 'a"/b' },
+      { "--repo", "a/b/c" },
+      { "--repo", "/" },
+      { "--repo", "a/" },
+      { "-z" },
+    }) do
       local out = vim.system(vim.list_extend({ "bash", "install.sh" }, args), { env = env, text = true }):wait(10000)
       assert(out.code == 1, ("install.sh %s exited %s"):format(table.concat(args, " "), out.code))
       assert(out.stderr:find("error:", 1, true), out.stderr)
@@ -349,5 +368,163 @@ return function(t)
       assert(pcall(vim.cmd.help, link), "dangling help link |" .. link .. "|")
       vim.cmd.close()
     end
+  end)
+
+  check("<C-/> inside the terminal hides it, even when the cwd isn't the project root", function()
+    -- regression: inside the terminal, Lumen.root() fell back to the cwd, a different Snacks key
+    -- than the project root the terminal was opened for, so <C-/> opened a second terminal
+    local project, elsewhere = vim.fn.tempname(), vim.fn.tempname()
+    vim.fn.mkdir(project .. "/.git", "p")
+    vim.fn.mkdir(elsewhere, "p")
+    local cwd = vim.uv.cwd()
+    local toggle_n = vim.fn.maparg("<C-/>", "n", false, true).callback
+    local toggle_t = vim.fn.maparg("<C-/>", "t", false, true).callback
+    assert(toggle_n and toggle_t, "<C-/> is not mapped in normal and terminal mode")
+    local function terms()
+      return vim.tbl_filter(function(t)
+        return t.buf and vim.api.nvim_buf_is_valid(t.buf)
+      end, Snacks.terminal.list())
+    end
+    local before = #terms()
+    local old = {}
+    for _, t in ipairs(terms()) do
+      old[t.buf] = true
+    end
+    local ok, err = pcall(function()
+      vim.cmd.cd(elsewhere)
+      vim.cmd.edit(project .. "/main.lua")
+      settle_lsp()
+      local file = vim.api.nvim_get_current_buf()
+      toggle_n()
+      local now = terms()
+      assert(#now == before + 1, "no terminal opened")
+      -- the new one (Snacks.terminal.list() isn't in creation order)
+      local term = vim.tbl_filter(function(t)
+        return not old[t.buf]
+      end, now)[1]
+      assert(vim.api.nvim_get_current_buf() == term.buf, "the terminal isn't focused")
+      toggle_t() -- from inside the terminal: hide it
+      assert(#terms() == before + 1, "a second terminal opened from inside the first")
+      assert(vim.fn.bufwinid(term.buf) == -1, "the terminal is still shown")
+      vim.api.nvim_set_current_buf(file)
+      toggle_n() -- and back: the same terminal
+      assert(#terms() == before + 1 and vim.fn.bufwinid(term.buf) ~= -1, "the terminal didn't come back")
+      term:close()
+    end)
+    vim.cmd.cd(cwd)
+    pcall(vim.cmd, "bwipeout! " .. vim.fn.fnameescape(project .. "/main.lua"))
+    vim.fn.delete(project, "rf")
+    vim.fn.delete(elsewhere, "rf")
+    assert(ok, err)
+
+    -- the same toggle with snacks.nvim disabled (plain split)
+    local probe = [[
+      vim.defer_fn(function()
+        vim.cmd.edit("lua/lumen/icons.lua")
+        local n, t = vim.fn.maparg("<C-/>", "n", false, true).callback, vim.fn.maparg("<C-/>", "t", false, true).callback
+        local function terms()
+          return #vim.tbl_filter(function(b) return vim.bo[b].buftype == "terminal" end, vim.api.nvim_list_bufs())
+        end
+        n()
+        local opened, wins = terms(), #vim.api.nvim_list_wins()
+        t()
+        local hidden, wins_after = terms(), #vim.api.nvim_list_wins()
+        n()
+        io.stdout:write(vim.json.encode({ opened = opened, wins = wins, hidden = hidden, wins_after = wins_after,
+          again = terms(), errmsg = vim.v.errmsg }) .. "\n")
+        vim.cmd("qa!")
+      end, 300)
+    ]]
+    local res, out =
+      child(probe, { ["lua/plugins/zz_no_snacks.lua"] = 'return { { "folke/snacks.nvim", enabled = false } }' })
+    assert(res.opened == 1 and res.wins == 2, "no terminal split: " .. vim.inspect(res) .. (out.stderr or ""))
+    assert(res.hidden == 1 and res.wins_after == 1, "not hidden: " .. vim.inspect(res))
+    assert(res.again == 1, "a second terminal opened: " .. vim.inspect(res))
+    assert(res.errmsg == "", res.errmsg)
+  end)
+
+  check("keymaps: counts for [q ]q [b ]b ]d, no ]] [[ in terminals, toggles before their plugins load", function()
+    -- regression: ]q/[q dropped the count and threw a Lua traceback on an empty list
+    vim.fn.setqflist({}, "r", {
+      items = {
+        -- no extension: no filetype, so no language server starts for buffers wiped right after
+        { filename = "lumen-qf-a", lnum = 1, text = "1" },
+        { filename = "lumen-qf-b", lnum = 1, text = "2" },
+        { filename = "lumen-qf-c", lnum = 1, text = "3" },
+      },
+    })
+    vim.cmd("silent! cfirst")
+    vim.api.nvim_feedkeys(vim.keycode("2]q"), "mx", false)
+    local idx = vim.fn.getqflist({ idx = 0 }).idx
+    vim.fn.setqflist({}, "r")
+    vim.cmd("silent! %bwipeout!")
+    assert(idx == 3, "2]q went to item " .. idx)
+    vim.v.errmsg = ""
+    pcall(vim.api.nvim_feedkeys, vim.keycode("]q"), "mx", false)
+    assert(not vim.v.errmsg:find("E5108", 1, true), "Lua traceback for an empty list: " .. vim.v.errmsg)
+    vim.v.errmsg = ""
+
+    -- 2]d jumps two diagnostics
+    vim.cmd("enew")
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { "a", "b", "c", "d" })
+    local ns = vim.api.nvim_create_namespace("lumen_test_jump")
+    vim.diagnostic.set(ns, 0, {
+      { lnum = 1, col = 0, message = "1" },
+      { lnum = 2, col = 0, message = "2" },
+      { lnum = 3, col = 0, message = "3" },
+    })
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    -- regression: `float = true` printed "opts.float is deprecated" on every jump (0.13)
+    local deprecated, orig_deprecate = false, vim.deprecate
+    vim.deprecate = function(...)
+      deprecated = true
+      return orig_deprecate(...)
+    end
+    vim.api.nvim_feedkeys(vim.keycode("2]d"), "mx", false)
+    vim.deprecate = orig_deprecate
+    assert(not deprecated, "]d uses a deprecated vim.diagnostic.jump option")
+    local line = vim.api.nvim_win_get_cursor(0)[1]
+    vim.cmd("bwipeout!")
+    for _, w in ipairs(vim.api.nvim_list_wins()) do
+      if vim.api.nvim_win_get_config(w).relative ~= "" then
+        vim.api.nvim_win_close(w, true)
+      end
+    end
+    assert(line == 3, "2]d went to line " .. line)
+
+    -- regression: ]] / [[ in terminal mode swallowed `[[` typed into shells
+    for _, lhs in ipairs({ "]]", "[[" }) do
+      assert(vim.fn.maparg(lhs, "t") == "", lhs .. " is mapped in terminal mode")
+    end
+    -- regression: these toggles only appeared once their plugin had loaded (mini.pairs: first insert)
+    for _, lhs in ipairs({ "<leader>up", "<leader>uG", "<leader>uB" }) do
+      assert(vim.fn.maparg(lhs, "n") ~= "", lhs .. " is not mapped")
+    end
+    local todo = require("lazy.core.config").plugins["todo-comments.nvim"].cmd or {}
+    assert(vim.tbl_contains(todo, "TodoQuickFix"), ":TodoQuickFix doesn't load todo-comments")
+  end)
+
+  check("project: :Lumen trust trusts the buffer you reviewed, not a newer file on disk", function()
+    local project = require("lumen.project")
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    local file = dir .. "/.lumen.lua"
+    vim.fn.writefile({ "return {}" }, file)
+    vim.cmd.edit(file)
+    settle_lsp()
+    -- the file changes on disk after you opened it (a git pull), and the buffer isn't reloaded
+    vim.fn.writefile({ "return { format_on_save = false }" }, file)
+    local saved = { path = project.path, trusted = project.trusted, notify = Lumen.notify }
+    Lumen.notify = function() end
+    project.path = file
+    local ok, err = pcall(project.trust)
+    Lumen.notify = saved.notify
+    project.path, project.trusted = saved.path, saved.trusted
+    local unseen = project.trusted_contents(file)
+    pcall(vim.secure.trust, { action = "remove", path = file })
+    vim.cmd("bwipeout!")
+    vim.fn.delete(dir, "rf")
+    assert(ok, err)
+    assert(unseen == nil, "code you never saw became trusted: " .. tostring(unseen))
   end)
 end

@@ -260,4 +260,84 @@ return function(t)
     lint._resolve_linter_by_ft = orig
     assert(ok, err)
   end)
+
+  check("packs: disabling a pack that another pack extends says why it stays on", function()
+    local packs = require("lumen.packs")
+    local warned, orig = {}, { warn = Lumen.warn, notify = Lumen.notify, prompt = packs.prompt_restart }
+    Lumen.warn = function(msg)
+      warned[#warned + 1] = msg
+    end
+    Lumen.notify, packs.prompt_restart = function() end, function() end
+    local ok, err = pcall(with_pack_state, function()
+      packs.set("vue", true)
+      packs.toggle("typescript", false)
+      assert(packs.enabled().typescript, "typescript should stay on while vue extends it")
+      assert(table.concat(warned, "\n"):find("the `vue` pack extends it", 1, true), vim.inspect(warned))
+    end)
+    Lumen.warn, Lumen.notify, packs.prompt_restart = orig.warn, orig.notify, orig.prompt
+    assert(ok, err)
+  end)
+
+  check(
+    "lsp: Mason batches are deduped, a failed registry refresh is reported, the update check installs nothing",
+    function()
+      local lsp = require("lumen.lsp")
+      -- stub only these two on the real module: other code (mason-lspconfig) uses the rest
+      local registry = require("mason-registry")
+      local real = { refresh = registry.refresh, get_package = registry.get_package }
+      local installs, refreshed, errors = {}, 0, {}
+      local refresh_ok = true
+      registry.refresh = function(cb)
+        refreshed = refreshed + 1
+        cb(refresh_ok)
+      end
+      registry.get_package = function(name)
+        return {
+          name = name,
+          is_installed = function()
+            return false
+          end,
+          is_installing = function()
+            return false
+          end,
+          install = function(_, _, done)
+            installs[#installs + 1] = name
+            done(true)
+          end,
+        }
+      end
+      local orig = { error = Lumen.error, notify = Lumen.notify }
+      Lumen.error = function(msg)
+        errors[#errors + 1] = msg
+      end
+      Lumen.notify = function() end
+      local ok, err = pcall(function()
+        -- regression: vue/astro + typescript put prettierd in one batch twice: "already installing"
+        lsp._install({ "prettierd", "prettierd", "eslint_d" })
+        vim.wait(200)
+        table.sort(installs)
+        assert(vim.deep_equal(installs, { "eslint_d", "prettierd" }), vim.inspect(installs))
+        -- regression: offline, every tool was reported as an unknown package
+        refresh_ok = false
+        lsp._install({ "stylua" })
+        vim.wait(200)
+        -- (installs queued by earlier checks may land in this window too: same message for each)
+        assert(#errors > 0, "no error for a failed registry refresh")
+        for _, e in ipairs(errors) do
+          assert(e:find("refresh Mason's registry", 1, true), vim.inspect(errors))
+        end
+        -- the `:Lumen update` check (LUMEN_SELFTEST) starts no installs it would leave half-done
+        refresh_ok, refreshed = true, 0
+        vim.env.LUMEN_SELFTEST = "1"
+        lsp._install({ "stylua" })
+        vim.env.LUMEN_SELFTEST = nil
+        vim.wait(100)
+        assert(refreshed == 0, "the update check touched Mason")
+      end)
+      vim.env.LUMEN_SELFTEST = nil
+      registry.refresh, registry.get_package = real.refresh, real.get_package
+      Lumen.error, Lumen.notify = orig.error, orig.notify
+      assert(ok, err)
+    end
+  )
 end

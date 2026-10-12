@@ -2,6 +2,8 @@
 # The sandbox config is the real starter, loading Lumen from this checkout — exactly what users run.
 LUMEN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LUMEN_SBX="${LUMEN_TEST_DIR:-$LUMEN_ROOT/.tests}"
+# absolute: the scripts cd into the repo before running nvim, which would re-root a relative path
+mkdir -p "$LUMEN_SBX" && LUMEN_SBX="$(cd "$LUMEN_SBX" && pwd)"
 _cfg="$LUMEN_SBX/config/lumen"
 [ -L "$_cfg" ] && rm "$_cfg"
 mkdir -p "$_cfg"

@@ -430,7 +430,7 @@ LazyVim's, so your muscle memory carries over.
 | `s` / `S` | flash jump / treesitter | `<C-h/j/k/l>` | windows, then tmux panes |
 | `<leader>uC` | colorschemes (live preview) | `<leader>ub` | night / dawn |
 | `<leader>uv` | cycle diagnostics display | `<leader>mw` | cursors on every match |
-| `<C-/>` | terminal | `<leader>L` | Lumen menu |
+| `<C-/>` | terminal (toggle, per project) | `<leader>L` | Lumen menu |
 
 <details>
 <summary><b>More keymaps</b></summary>
@@ -470,6 +470,7 @@ LazyVim's, so your muscle memory carries over.
 | `<leader>cs` / `cS` | symbols outline / LSP refs (Trouble) | `<leader>cm` | Mason |
 | `]d` `[d` | next / prev diagnostic | `]e` `[e` / `]w` `[w` | errors / warnings |
 | `<leader>xx` / `xX` | diagnostics / buffer diagnostics (Trouble) | `<leader>xQ` / `xL` | quickfix / location list (Trouble) |
+| `<leader>xt` | todos (Trouble) | | |
 
 **Git**
 
@@ -505,6 +506,7 @@ LazyVim's, so your muscle memory carries over.
 | `uc` | conceal | `uS` | smooth scroll |
 | `uD` | dim | `uz` / `uZ` | zen / zoom |
 | `uC` | colorschemes | `un` | dismiss notifications |
+| `up` | auto pairs | `uG` / `uB` | git signs / inline blame |
 
 **Windows, buffers, tabs & sessions**
 
@@ -516,7 +518,7 @@ LazyVim's, so your muscle memory carries over.
 | `<leader>bd` / `bo` / `bD` | delete / others / buffer & window | `<leader><tab>*` | tab pages |
 | `<leader>qs` / `ql` / `qS` | restore / last / select session | `<leader>qd` | don't save session |
 | `<leader>qr` | restart Neovim (0.12+) | `<leader>qq` | quit all |
-| `<C-/>` | terminal | `<leader>l` / `L` | Lazy / Lumen menu |
+| `<C-/>` | terminal: opens the project's, hides it from inside | `<leader>l` / `L` | Lazy / Lumen menu |
 
 **Packs:** `dap` adds `<leader>d*` and `F5` `F10` `F11`, `test` adds `<leader>t*`, `ai` adds
 `<leader>a*` (and `<Tab>` accepts a Copilot suggestion in insert mode), `git` adds Octo issues / PRs / review,

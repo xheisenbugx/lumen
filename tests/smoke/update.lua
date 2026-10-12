@@ -31,15 +31,29 @@ return function(t)
     local merged, pinned, extras = up.merge_lock({
       ["flash.nvim"] = { branch = "main", commit = "new" },
       ["my-plugin"] = { branch = "main", commit = "mine" },
+      ["disabled.nvim"] = { branch = "main", commit = "old" },
+      ["pinned.nvim"] = { branch = "main", commit = "own" },
       lumen = { branch = "main", commit = "x" },
     }, {
       ["flash.nvim"] = { branch = "main", commit = "vetted" },
       ["not-installed"] = { branch = "main", commit = "y" },
+      ["disabled.nvim"] = { branch = "main", commit = "vetted" },
+      ["pinned.nvim"] = { branch = "main", commit = "vetted" },
+    }, {
+      -- what lazy.nvim's plugin list holds: `disabled.nvim` has `enabled = false`, so it isn't there
+      ["flash.nvim"] = {},
+      ["my-plugin"] = {},
+      ["pinned.nvim"] = { commit = "own" },
+      lumen = {},
     })
     assert(merged["flash.nvim"].commit == "vetted", vim.inspect(merged))
     assert(merged["my-plugin"].commit == "mine" and merged["not-installed"] == nil, vim.inspect(merged))
+    -- regression: a disabled plugin in the lockfile made lazy's restore crash mid-update
+    assert(merged["disabled.nvim"].commit == "old", "a disabled plugin was touched: " .. vim.inspect(merged))
+    -- a spec that picks its own version keeps it (Lumen's nvim-treesitter pin on 0.11)
+    assert(merged["pinned.nvim"].commit == "own", "a spec's own commit was overridden: " .. vim.inspect(merged))
     assert(
-      vim.deep_equal(pinned, { "flash.nvim" }) and vim.deep_equal(extras, { "my-plugin" }),
+      vim.deep_equal(pinned, { "flash.nvim" }) and vim.deep_equal(extras, { "my-plugin", "pinned.nvim" }),
       vim.inspect({ pinned, extras })
     )
 
@@ -54,7 +68,9 @@ return function(t)
     packs.prompt_restart = function() end
     local ok, err = pcall(function()
       local current = vim.json.decode(table.concat(vim.fn.readfile(lockfile), "\n"))
-      local some = next(current)
+      -- a plugin with no version of its own in its spec (those aren't pinned, see merge_lock)
+      local some = "flash.nvim"
+      assert(current[some], "flash.nvim is not in the lockfile")
       lazy.restore = function(opts)
         calls.restore = opts.plugins
       end
@@ -191,5 +207,25 @@ return function(t)
     if vim.v.errmsg == "E31: No such mapping" then
       vim.v.errmsg = errmsg
     end
+  end)
+
+  check("update: snapshots follow lazy.nvim's `lockfile` option", function()
+    -- regression: the path was hardcoded to <config>/lazy-lock.json, so a custom lockfile had no
+    -- snapshot (no rollback) and every update read "Everything is up to date"
+    local Config = require("lazy.core.config")
+    local up = require("lumen.update")
+    local saved = Config.options.lockfile
+    local custom = vim.fn.tempname() .. "-lock.json"
+    vim.fn.writefile({ '{ "x.nvim": { "branch": "main", "commit": "abc" } }' }, custom)
+    Config.options.lockfile = custom
+    local ok, path = pcall(up.snapshot)
+    Config.options.lockfile = saved
+    local content = ok and path and table.concat(vim.fn.readfile(path), "\n") or ""
+    if ok and path then
+      os.remove(path)
+    end
+    os.remove(custom)
+    assert(ok, path)
+    assert(content:find('"commit": "abc"', 1, true), "the snapshot isn't of the configured lockfile: " .. content)
   end)
 end

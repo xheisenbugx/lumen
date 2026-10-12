@@ -130,6 +130,36 @@ return function(t)
     assert(vim.api.nvim_get_hl(0, { name = "Normal" }).bg == tonumber("10131a", 16), "lumen not restored")
   end)
 
+  check("switching from Lumen to a scheme that sets 'background' sticks", function()
+    -- regression: habamax/slate set 'background' while loading; the OptionSet handler still saw
+    -- Lumen as active and reloaded it on the next tick, undoing the user's choice
+    local bg = vim.o.background
+    vim.wait(200) -- earlier checks may have a (legitimate) reload of lumen still scheduled
+    local ok, err = pcall(function()
+      for _, from in ipairs({ "lumen", "lumen-night", "lumen-dawn" }) do
+        for _, to in ipairs({ "habamax", "slate" }) do
+          vim.cmd.colorscheme(from)
+          vim.wait(50) -- two separate choices, as a user makes them
+          vim.cmd.colorscheme(to)
+          vim.wait(150) -- the reload was scheduled
+          assert(vim.g.colors_name == to, ("%s → %s ended as %s"):format(from, to, tostring(vim.g.colors_name)))
+        end
+      end
+      -- and Lumen still follows 'background' once it's active again
+      vim.cmd.colorscheme("lumen")
+      vim.o.background = "light"
+      assert(
+        wait(1000 * SLOW, function()
+          return vim.api.nvim_get_hl(0, { name = "Normal" }).bg == tonumber("f7f3eb", 16)
+        end),
+        "the background toggle stopped switching lumen to dawn"
+      )
+    end)
+    vim.o.background = bg
+    vim.cmd.colorscheme("lumen")
+    assert(ok, err)
+  end)
+
   check("theme contrast (WCAG) in both variants", function()
     local function lum(h)
       local function ch(i)

@@ -70,6 +70,7 @@ return {
             and not tried[lang]
             and not ts.is_pending(lang)
             and vim.fn.executable("tree-sitter") == 1
+            and not require("lumen.lsp").selftest()
           then
             tried[lang] = true
             ts.install({ lang }, function()

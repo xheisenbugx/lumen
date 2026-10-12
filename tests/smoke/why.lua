@@ -110,4 +110,21 @@ return function(t)
     assert(ok, text)
     assert(text:find("`lumen-fake-toolchain` not found on PATH — the `lua` pack needs it", 1, true), text)
   end)
+
+  check("why: a linter that throws doesn't break the report", function()
+    require("lazy").load({ plugins = { "nvim-lint" } })
+    local lint = require("lint")
+    local saved = lint.linters_by_ft.lua
+    lint.linters.lumen_broken = function()
+      error("broken linter")
+    end
+    lint.linters_by_ft.lua = { "lumen_broken" }
+    vim.cmd.edit("lua/lumen/init.lua")
+    local ok, text = pcall(function()
+      return table.concat(require("lumen.why").report(0), "\n")
+    end)
+    lint.linters_by_ft.lua, lint.linters.lumen_broken = saved, nil
+    assert(ok, text)
+    assert(text:find("`lumen_broken` not installed", 1, true), text)
+  end)
 end

@@ -57,27 +57,7 @@ return {
         map("n", "<leader>ghd", gs.diffthis, "Diff this")
         map({ "o", "x" }, "ih", ":<C-U>Gitsigns select_hunk<CR>", "Hunk")
         -- stylua: ignore end
-        if not _G.Snacks then
-          return
-        end
-        Snacks.toggle({
-          name = "Git signs",
-          get = function()
-            return require("gitsigns.config").config.signcolumn
-          end,
-          set = function(state)
-            gs.toggle_signs(state)
-          end,
-        }):map("<leader>uG")
-        Snacks.toggle({
-          name = "Inline blame",
-          get = function()
-            return require("gitsigns.config").config.current_line_blame
-          end,
-          set = function(state)
-            gs.toggle_current_line_blame(state)
-          end,
-        }):map("<leader>uB")
+        -- (<leader>uG / <leader>uB are in keymaps.lua: they exist before any buffer attaches)
       end,
     },
   },
@@ -97,10 +77,14 @@ return {
     },
   },
 
+  -- todo-comments' search (`Trouble todo`, <leader>xt) runs ripgrep through plenary. lazy.nvim loads
+  -- a lazy plugin on its first `require`, so this costs nothing until then.
+  { "nvim-lua/plenary.nvim", lazy = true },
+
   -- TODO / FIXME / HACK highlights & search
   {
     "folke/todo-comments.nvim",
-    cmd = { "TodoTrouble" },
+    cmd = { "TodoTrouble", "TodoQuickFix", "TodoLocList" },
     -- after the first file is drawn: setup() highlights every visible window
     event = "User LumenFileIdle",
     opts = { signs = false },

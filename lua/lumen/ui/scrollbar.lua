@@ -99,8 +99,11 @@ local function render(win)
     end
     src.diag = list
   end
-  for _, d in ipairs(src.diag) do
-    mark(d[1], d[2])
+  -- turned off with <leader>ud: no marks (checked on every refresh, the cache isn't told)
+  if vim.diagnostic.is_enabled({ bufnr = buf }) then
+    for _, d in ipairs(src.diag) do
+      mark(d[1], d[2])
+    end
   end
 
   local gs = package.loaded.gitsigns
@@ -117,7 +120,14 @@ local function render(win)
   -- search hits, cached per pattern + buffer version
   local pattern = vim.v.hlsearch == 1 and vim.fn.getreg("/") or ""
   if pattern ~= "" and total < 100000 then
-    local key = pattern .. "\0" .. vim.b[buf].changedtick
+    -- matchbufline() honours 'ignorecase' but not 'smartcase': apply it like `/` does (an
+    -- uppercase letter that isn't part of an escape makes the search case-sensitive)
+    if vim.o.ignorecase and vim.o.smartcase and not pattern:find("\\[cC]") then
+      if pattern:gsub("\\.", ""):find("%u") then
+        pattern = "\\C" .. pattern
+      end
+    end
+    local key = pattern .. "\0" .. tostring(vim.o.ignorecase) .. "\0" .. vim.b[buf].changedtick
     if src.search_key ~= key then
       local ok, matches = pcall(vim.fn.matchbufline, buf, pattern, 1, "$")
       local list = {}

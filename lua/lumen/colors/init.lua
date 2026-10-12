@@ -131,10 +131,24 @@ end
 -- whether a Lumen variant is the active colorscheme
 local active = false
 
+-- the scheme being loaded right now (ColorSchemePre → ColorScheme), if any
+local switching ---@type string?
+
 local group = vim.api.nvim_create_augroup("lumen_colors", { clear = true })
+vim.api.nvim_create_autocmd("ColorSchemePre", {
+  group = group,
+  callback = function(ev)
+    switching = ev.match
+    -- a scheme that errors halfway never fires ColorScheme: don't stay "switching" forever
+    vim.schedule(function()
+      switching = nil
+    end)
+  end,
+})
 vim.api.nvim_create_autocmd("ColorScheme", {
   group = group,
   callback = function()
+    switching = nil
     active = (vim.g.colors_name or ""):find("^lumen") ~= nil
   end,
 })
@@ -146,6 +160,11 @@ vim.api.nvim_create_autocmd("OptionSet", {
   group = group,
   pattern = "background",
   callback = function()
+    -- another scheme setting 'background' while it loads (habamax, slate…): `active` and
+    -- colors_name still describe Lumen until its ColorScheme, so don't pull Lumen back
+    if switching and not switching:find("^lumen") then
+      return
+    end
     if not loading and (active or (vim.g.colors_name or ""):find("^lumen")) then
       vim.schedule(function()
         vim.cmd.colorscheme("lumen")

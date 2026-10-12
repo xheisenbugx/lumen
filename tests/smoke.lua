@@ -61,7 +61,8 @@ end
 ---@param probe string
 ---@param files? table<string, string> path (relative to the config dir) → contents
 ---@param args? string[] extra arguments for the child
-local function child(probe, files, args)
+---@param timeout? integer ms (default 60s, stretched on CI)
+local function child(probe, files, args, timeout)
   local cfg = vim.fn.stdpath("config")
   local root = vim.fn.tempname()
   local dir = root .. "/" .. vim.fn.fnamemodify(cfg, ":t")
@@ -73,7 +74,7 @@ local function child(probe, files, args)
   end
   local cmd = { vim.v.progpath, "--headless", "-c", "lua " .. probe:gsub("\n", " ") }
   vim.list_extend(cmd, args or {})
-  local out = vim.system(cmd, { text = true, env = { XDG_CONFIG_HOME = root } }):wait(60000 * SLOW)
+  local out = vim.system(cmd, { text = true, env = { XDG_CONFIG_HOME = root } }):wait((timeout or 60000) * SLOW)
   vim.fn.delete(root, "rf")
   return vim.json.decode((out.stdout or ""):match("{.*}") or "{}"), out
 end
@@ -83,7 +84,7 @@ local helpers = { check = check, wait = wait, child = child, fake_server = fake_
 
 -- one file per area, in this order: later files can rely on state the earlier ones left (an
 -- attached lua_ls, installed parsers)
-local files = { "theme", "ui", "packs", "tasks", "why", "startup", "update" }
+local files = { "theme", "ui", "packs", "tasks", "why", "startup", "keys", "update" }
 
 local function run()
   io.stdout:write("\nLumen smoke test\n")
