@@ -131,21 +131,7 @@ return {
     opts = {
       modes = { insert = true, command = false, terminal = false },
     },
-    config = function(_, opts)
-      require("mini.pairs").setup(opts)
-      if not _G.Snacks then
-        return
-      end
-      Snacks.toggle({
-        name = "Auto pairs",
-        get = function()
-          return not vim.g.minipairs_disable
-        end,
-        set = function(state)
-          vim.g.minipairs_disable = not state
-        end,
-      }):map("<leader>up")
-    end,
+    -- the <leader>up toggle is in keymaps.lua, so it works before the first InsertEnter
   },
 
   -- inline color swatches for #rrggbb

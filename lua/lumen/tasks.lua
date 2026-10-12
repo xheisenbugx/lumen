@@ -32,6 +32,12 @@ local function exists(dir, name)
   return vim.uv.fs_stat(dir .. "/" .. name) ~= nil
 end
 
+--- a script name as one shell word: names are free text in package.json & co (`build all`, `a&b`)
+---@param name string
+local function word(name)
+  return name:find("^[%w_.:/@+=,-]+$") and name or vim.fn.shellescape(name)
+end
+
 --- JSON with comments (deno.jsonc, tsconfig-style): drop // and /* */ comments outside strings,
 --- then trailing commas, so vim.json can read it
 ---@param s string
@@ -98,14 +104,14 @@ providers["package.json"] = function(dir, add)
   local names = vim.tbl_keys(pkg.scripts or {})
   table.sort(names)
   for _, name in ipairs(names) do
-    add(name, pm .. " " .. name)
+    add(name, pm .. " " .. word(name))
   end
 end
 
 providers["deno.json"] = function(dir, add)
   local cfg = json(dir .. "/deno.json") or json(dir .. "/deno.jsonc") or {}
   for name in pairs(cfg.tasks or {}) do
-    add(name, "deno task " .. name)
+    add(name, "deno task " .. word(name))
   end
 end
 
@@ -160,7 +166,7 @@ end
 
 providers["composer.json"] = function(dir, add)
   for name in pairs((json(dir .. "/composer.json") or {}).scripts or {}) do
-    add(name, "composer run " .. name)
+    add(name, "composer run " .. word(name))
   end
 end
 
@@ -260,7 +266,7 @@ providers[".vscode"] = function(dir, add)
     t = vim.tbl_deep_extend("force", t, type(t[os_key]) == "table" and t[os_key] or {})
     local cmd
     if t.type == "npm" and t.script then
-      cmd = "npm run " .. t.script
+      cmd = "npm run " .. word(t.script)
       if t.path then
         t.options = vim.tbl_extend("force", t.options or {}, { cwd = dir .. "/" .. t.path })
       end
@@ -320,7 +326,15 @@ function M.discover(buf)
     end
   end
   for _, t in ipairs(require("lumen.config").tasks or {}) do
-    tasks[#tasks + 1] = { name = t.name or t.cmd, cmd = t.cmd, cwd = t.cwd or Lumen.root(), source = "config" }
+    -- `{ name = "x", command = "…" }` or a plain string would crash the picker later: skip it
+    if type(t) == "table" and type(t.cmd) == "string" then
+      tasks[#tasks + 1] = { name = t.name or t.cmd, cmd = t.cmd, cwd = t.cwd or Lumen.root(), source = "config" }
+    elseif not M._warned_bad then
+      M._warned_bad = true
+      Lumen.warn(
+        'tasks: each entry in `tasks = {}` needs a `cmd` string, e.g. { name = "deploy", cmd = "./deploy.sh" }'
+      )
+    end
   end
   local project = require("lumen.project")
   for _, t in ipairs(project.tasks()) do
@@ -417,8 +431,10 @@ end
 -- is on a ` --> file:line:col` line after the message), python tracebacks, then the defaults
 -- (gcc/clang/go/eslint-unix/ruff all use file:line:col: message)
 -- (global value on purpose: buffer-local ones, e.g. cargo's, can't parse other tools)
+local DIR_MARK = "lumen-task-dir: "
 local function efm()
   return table.concat({
+    "%D" .. DIR_MARK .. "%f",
     "%f(%l\\,%c): %trror TS%n: %m",
     "%f:%l:%c - %trror TS%n: %m",
     "%E%trror[E%n]: %m",
@@ -467,19 +483,29 @@ function M.run_background(task)
       end)
     )
   end
-  local shell = vim.o.shell
+  -- 'shellcmdflag', not a fixed `-c`: cmd.exe wants `/s /c`, PowerShell `-Command`
+  local argv = { vim.o.shell }
+  vim.list_extend(argv, vim.split(vim.o.shellcmdflag, "%s+", { trimempty = true }))
+  argv[#argv + 1] = task.cmd
   -- vim.system throws right away for a missing cwd or shell: don't leave the task "running"
-  local ok, err = pcall(vim.system, { shell, "-c", task.cmd }, { cwd = task.cwd, text = true }, function(out)
+  local ok, err = pcall(vim.system, argv, { cwd = task.cwd, text = true }, function(out)
     vim.schedule(function()
       local secs = (vim.uv.hrtime() - M.running[id].started) / 1e9
       M.running[id] = nil
       vim.cmd.redrawstatus()
       -- split the streams apart: stdout without a final newline must not swallow stderr's first line
-      local lines = vim.split(out.stdout or "", "\n", { trimempty = true })
+      -- relative paths are relative to the task's folder, not Neovim's cwd: the first line puts
+      -- it on 'errorformat's directory stack (%D in efm())
+      local lines = { DIR_MARK .. task.cwd }
+      vim.list_extend(lines, vim.split(out.stdout or "", "\n", { trimempty = true }))
       vim.list_extend(lines, vim.split(out.stderr or "", "\n", { trimempty = true }))
       vim.fn.setqflist({}, " ", { title = task.name, lines = lines, efm = efm() })
       -- summaries such as cargo's "error: could not compile" parse as entries without a file
       local items, valid = vim.fn.getqflist(), 0
+      -- the directory line (always the first) leaves an invalid entry of its own
+      if items[1] and items[1].valid == 0 then
+        table.remove(items, 1)
+      end
       for _, e in ipairs(items) do
         if e.valid == 1 and e.bufnr == 0 then
           e.valid = 0

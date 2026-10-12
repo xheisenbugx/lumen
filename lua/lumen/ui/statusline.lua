@@ -125,6 +125,10 @@ end
 local diag_cache = {}
 
 local function diagnostics(buf)
+  -- <leader>ud turns them off: the counts go with them
+  if not vim.diagnostic.is_enabled({ bufnr = buf }) then
+    return ""
+  end
   local counts = diag_cache[buf]
   if not counts then
     counts = vim.diagnostic.count(buf)
@@ -222,7 +226,11 @@ local function extras()
     end
     local sc = search.res
     if sc.total and sc.total > 0 then
-      out[#out + 1] = hl("LumenStlDim", icons.misc.search .. ("%d/%d"):format(sc.current, sc.total))
+      -- past maxcount the numbers are capped (incomplete = 2); on a timeout they're partial (1)
+      local max = sc.maxcount or 999
+      local cur = (sc.incomplete == 2 and sc.current > max) and (">" .. max) or tostring(sc.current)
+      local total = sc.incomplete == 2 and (">" .. max) or (sc.incomplete == 1 and "?" or tostring(sc.total))
+      out[#out + 1] = hl("LumenStlDim", icons.misc.search .. cur .. "/" .. total)
     end
   end
   return table.concat(out, "  ")
@@ -271,6 +279,10 @@ function M.render()
   local win = vim.g.statusline_winid or vim.api.nvim_get_current_win()
   local buf = vim.api.nvim_win_get_buf(win)
   local wide = vim.o.columns >= 100
+  if not wide then
+    -- the progress segment isn't drawn: don't keep its redraw timer ticking
+    progress_shown = false
+  end
 
   -- `%<`: when the line is too long, cut the branch / path, not the mode on the far left
   local left = mode() .. hl("LumenStl", "  %<") .. join({ git(buf), file(buf) }, hl("LumenStl", "  "))
@@ -287,6 +299,9 @@ end
 
 function M.setup()
   vim.o.statusline = "%!v:lua.require'lumen.ui.statusline'.render()"
+  -- the qf ftplugin sets a window-local 'statusline' (`[Quickfix List] …`), which would replace
+  -- Lumen's global line whenever the quickfix window is focused
+  vim.g.qf_disable_statusline = 1
   local group = vim.api.nvim_create_augroup("lumen_statusline", { clear = true })
   vim.api.nvim_create_autocmd("ColorScheme", {
     group = group,

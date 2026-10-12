@@ -149,9 +149,14 @@ function M.request(buf)
       if err or not vim.api.nvim_buf_is_valid(buf) then
         return
       end
-      cache[buf] = { tick = tick, symbols = normalize(result) }
+      -- ranges are in the client's offset encoding (utf-16 for most servers, utf-8 for some)
+      cache[buf] = { tick = tick, symbols = normalize(result), enc = client.offset_encoding or "utf-16" }
       vim.schedule(function()
         pcall(vim.cmd.redrawstatus, { bang = true })
+        -- edited while the request was in flight (requests aren't stacked): ask again
+        if vim.api.nvim_buf_is_valid(buf) and vim.b[buf].changedtick ~= tick then
+          M.request(buf)
+        end
       end)
     end,
     buf
@@ -234,7 +239,9 @@ function M.render()
     heads[name] = head
   end
   local out = { head.str }
-  local active = win == vim.api.nvim_get_current_win()
+  -- while %{%…%} is evaluated, the window being drawn *is* the current one: the real current
+  -- window is g:actual_curwin
+  local active = win == (tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win())
   out[#out + 1] = "%#" .. (active and "LumenWinbarFile" or "LumenWinbar") .. "#" .. head.file
   if vim.bo[buf].modified then
     out[#out + 1] = "%#LumenStlModified# ●"
@@ -245,7 +252,16 @@ function M.render()
   rendered[win] = {}
   if entry then
     local cursor = vim.api.nvim_win_get_cursor(win)
-    local crumbs = path_at(entry.symbols, cursor[1] - 1, cursor[2])
+    local col = cursor[2]
+    if entry.enc ~= "utf-8" and col > 0 then
+      -- the cursor column is in bytes; symbol ranges are in the server's encoding
+      local text = vim.api.nvim_buf_get_lines(buf, cursor[1] - 1, cursor[1], false)[1] or ""
+      if text:find("[\128-\255]") then
+        local ok, idx = pcall(vim.str_utfindex, text, entry.enc, math.min(col, #text), false)
+        col = ok and idx or col
+      end
+    end
+    local crumbs = path_at(entry.symbols, cursor[1] - 1, col)
     local budget = vim.api.nvim_win_get_width(win) - head.width - 10
     -- drop outermost crumbs until it fits
     local first = 1
@@ -291,7 +307,8 @@ function _G.LumenWinbarClick(idx, clicks, button, mods)
     local buf = vim.api.nvim_win_get_buf(win)
     local line = math.min(s.range.start.line + 1, vim.api.nvim_buf_line_count(buf))
     local text = vim.api.nvim_buf_get_lines(buf, line - 1, line, false)[1] or ""
-    local col = vim.str_byteindex(text, "utf-16", math.min(s.range.start.character, vim.str_utfindex(text, "utf-16")))
+    local enc = cache[buf] and cache[buf].enc or "utf-16"
+    local col = vim.str_byteindex(text, enc, math.min(s.range.start.character, vim.str_utfindex(text, enc)))
     vim.api.nvim_win_set_cursor(win, { line, col })
   end
 end
@@ -339,14 +356,21 @@ function M.setup()
   vim.api.nvim_create_autocmd("OptionSet", { group = group, pattern = "diff", callback = attach_all })
   vim.api.nvim_create_autocmd("VimEnter", { group = group, callback = attach_all })
 
-  local timer = assert(vim.uv.new_timer())
+  -- debounced per buffer: one shared "last buffer" would drop a pending refresh when you
+  -- edit a buffer and move to another one within the delay
+  local timer, queued = assert(vim.uv.new_timer()), {} ---@type uv.uv_timer_t, table<integer, true>
   local function refresh(buf)
+    queued[buf] = true
     timer:stop()
     timer:start(
       250,
       0,
       vim.schedule_wrap(function()
-        M.request(buf)
+        local bufs = queued
+        queued = {}
+        for b in pairs(bufs) do
+          M.request(b)
+        end
       end)
     )
   end

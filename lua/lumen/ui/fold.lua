@@ -3,6 +3,8 @@
 
 local M = {}
 
+local NOT_HL = { spell = true, nospell = true, conceal = true }
+
 ---@param buf integer
 ---@param lnum integer 0-based
 local function highlighted(buf, lnum)
@@ -21,10 +23,14 @@ local function highlighted(buf, lnum)
     end
     for id, node in query:iter_captures(tree:root(), buf, lnum, lnum + 1) do
       local sr, sc, er, ec = node:range()
-      if sr <= lnum and er >= lnum then
+      local cap = query.captures[id]
+      -- `@spell`, `@nospell`, `@conceal` and private `@_x` captures aren't highlights: they follow
+      -- the real capture (`(comment) @comment @spell`) and would overwrite it with nothing
+      local is_hl = not NOT_HL[cap] and cap:sub(1, 1) ~= "_"
+      if is_hl and sr <= lnum and er >= lnum then
         sc = sr < lnum and 0 or sc
         ec = er > lnum and #line or ec
-        local group = "@" .. query.captures[id] .. "." .. ltree:lang()
+        local group = "@" .. cap .. "." .. ltree:lang()
         for c = sc, ec - 1 do
           hls[c] = group
         end

@@ -222,4 +222,72 @@ return function(t)
     vim.fn.delete(dir, "rf")
     assert(ok, err)
   end)
+
+  check("tasks: quickfix paths are relative to the task's folder, bad config tasks are skipped", function()
+    local tasks = require("lumen.tasks")
+    -- regression: relative paths were resolved against Neovim's cwd (monorepos, .vscode cwd)
+    local dir = vim.fs.normalize(assert(vim.uv.fs_realpath(vim.fn.tempname()) or (function()
+      local d = vim.fn.tempname()
+      vim.fn.mkdir(d, "p")
+      return vim.uv.fs_realpath(d)
+    end)()))
+    vim.fn.mkdir(dir .. "/app/src", "p")
+    vim.fn.writefile({ "x" }, dir .. "/app/src/a.lua")
+    vim.fn.setqflist({}, "r")
+    tasks.run_background({
+      name = "rel",
+      cmd = "echo 'src/a.lua:1:1: boom'; exit 1",
+      cwd = dir .. "/app",
+      source = "test",
+    })
+    assert(
+      wait(5000 * SLOW, function()
+        return #vim.fn.getqflist() > 0 and not next(tasks.running)
+      end),
+      "task did not finish"
+    )
+    local valid = vim.tbl_filter(function(e)
+      return e.valid == 1
+    end, vim.fn.getqflist())
+    assert(#valid == 1, "expected one entry: " .. vim.inspect(vim.fn.getqflist()))
+    local name = vim.fs.normalize(vim.uv.fs_realpath(vim.api.nvim_buf_get_name(valid[1].bufnr)) or "")
+    assert(name == dir .. "/app/src/a.lua", "resolved to " .. name)
+    vim.cmd("cclose")
+    pcall(vim.cmd, "bwipeout! " .. valid[1].bufnr)
+    vim.fn.delete(dir, "rf")
+
+    -- regression: `{ command = … }` (not `cmd`) or a bare string crashed the picker
+    local config = require("lumen.config")
+    local saved, warn = config.tasks, Lumen.warn
+    local warned = 0
+    Lumen.warn = function()
+      warned = warned + 1
+    end
+    config.tasks = { { name = "deploy", command = "./deploy.sh" }, "oops", { name = "ok", cmd = "true" } }
+    tasks._warned_bad = nil
+    local ok, found = pcall(tasks.discover)
+    config.tasks, Lumen.warn = saved, warn
+    assert(ok, found)
+    local names = vim.tbl_map(function(t)
+      return t.source == "config" and t.name or nil
+    end, found)
+    assert(vim.deep_equal(vim.tbl_values(names), { "ok" }), vim.inspect(names))
+    assert(warned == 1, "invalid tasks should warn once, warned " .. warned)
+  end)
+
+  check("tasks: script names with spaces or shell characters are quoted", function()
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    vim.fn.writefile({ '{"scripts":{"build all":"x","a&b":"y","test:unit":"z"}}' }, dir .. "/package.json")
+    vim.cmd.edit(dir .. "/x.js")
+    local by = {}
+    for _, t in ipairs(require("lumen.tasks").discover()) do
+      by[t.name] = t.cmd
+    end
+    vim.cmd("bwipeout!")
+    vim.fn.delete(dir, "rf")
+    assert(by["build all"] == "npm run 'build all'", tostring(by["build all"]))
+    assert(by["a&b"] == "npm run 'a&b'", tostring(by["a&b"]))
+    assert(by["test:unit"] == "npm run test:unit", tostring(by["test:unit"]))
+  end)
 end

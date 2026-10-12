@@ -3,6 +3,58 @@
 What changed for you, newest first. `:Lumen update` shows the sections newer than the version you
 were running, and `:Lumen news` shows them all.
 
+## 0.3.1
+
+Fixes from a full audit, plus a test that presses every keymap Lumen defines.
+
+- **`<C-/>` no longer opens a second terminal** when you press it inside the terminal while
+  Neovim's cwd isn't the project root: it hides the terminal you're in, as it should.
+- **Colorschemes:** switching from Lumen to a scheme that sets 'background' while it loads
+  (habamax, slate…) no longer snaps back to Lumen.
+- **Keymaps:**
+  - `<leader>?` (buffer keymaps) no longer errors when it's the key that loads which-key.
+  - `<leader>xt` (todos in Trouble) works: it needed plenary.nvim, which Lumen now installs
+    (loaded only when used).
+  - `]]` / `[[` are normal-mode only: in terminals they ate `[[` / `]]` typed into the shell and
+    slowed down every `[` / `]` (lazygit tabs).
+  - `]q` `[q` `]b` `[b` `]d` `[d` `]e` `[e` `]w` `[w` take a count (`3]d`), and `]q` on an empty
+    list shows a plain `E42` instead of a Lua traceback.
+  - `<A-j>` / `<A-k>` on the last / first line no longer error.
+  - `<leader>up`, `<leader>uG` and `<leader>uB` exist from startup, not only once their plugin
+    has loaded; `:TodoQuickFix` and `:TodoLocList` load todo-comments.
+  - `<leader>mw` works in visual-block mode, and its message points at `<leader>mc` (Lumen's
+    `<C-l>` moves to the right window, it doesn't clear cursors).
+- **UI:**
+  - Inactive windows' winbar no longer shows the file name as active.
+  - Breadcrumbs refresh after edits made while a symbol request was in flight, and in a buffer
+    you leave right after editing.
+  - Breadcrumbs and crumb clicks use the server's offset encoding (non-ASCII lines, clangd).
+  - Folded comments keep their color.
+  - The scrollbar's search marks respect 'smartcase'.
+  - Lumen's statusline stays in the quickfix window.
+  - The search count shows `>999` instead of a wrong exact number.
+  - Diagnostics turned off with `<leader>ud` also leave the statusline and scrollbar.
+- **Updates:**
+  - The stable channel no longer crashes on a plugin you disabled.
+  - The stable channel no longer overrides a plugin spec's own `commit`, `tag`, `pin` or
+    `version`.
+  - Snapshots follow lazy.nvim's `lockfile` option.
+  - The verification Neovim no longer starts installs it would leave half-done.
+- **Mason:**
+  - Language servers install on the very first launch: they used to wait for a restart.
+  - A package two packs share installs once.
+  - An unreachable registry is reported as such, not as "unknown package".
+- **Tasks:**
+  - Quickfix paths resolve against the task's folder.
+  - Background tasks use 'shellcmdflag'.
+  - Script names with spaces are quoted.
+  - A malformed entry in `tasks = {}` is skipped with a warning instead of crashing the picker.
+- **Project settings:** `:Lumen trust` trusts the buffer you reviewed, not a newer file on disk.
+  `:Lumen packs disable` says why a pack stays on (another pack extends it, or `.lumen.lua`).
+- **Other:**
+  - `:Lumen why` survives a linter definition that throws.
+  - `install.sh --repo` only accepts `owner/name`.
+
 ## 0.3.0
 
 - **Packs turn on without a restart.** Enabling a pack that only configures servers, parsers,

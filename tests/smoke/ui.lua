@@ -126,6 +126,26 @@ return function(t)
     assert(chunks[#chunks][1]:find("6 lines"), "missing count")
   end)
 
+  check("fold text: comments keep their color (@spell / @nospell aren't highlights)", function()
+    vim.cmd("enew")
+    -- nofile: no language server starts (its scheduled start would hit the wiped buffer)
+    vim.bo.buftype = "nofile"
+    vim.bo.filetype = "lua"
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { "-- a comment here", "---@param x string", "local y = 1" })
+    vim.treesitter.start(0, "lua")
+    local groups = {}
+    for _, lnum in ipairs({ 1, 2 }) do
+      vim.v.foldstart, vim.v.foldend = lnum, 3
+      for _, c in ipairs(require("lumen.ui.fold").text()) do
+        groups[#groups + 1] = c[2]
+      end
+    end
+    vim.cmd("bwipeout!")
+    local all = table.concat(groups, " ")
+    assert(not all:find("spell", 1, true), "a non-highlight capture won: " .. all)
+    assert(all:find("@comment", 1, true), "comment highlight missing: " .. all)
+  end)
+
   check("fold text expands tabs to tab stops", function()
     vim.cmd("enew")
     vim.bo.tabstop = 4
@@ -201,6 +221,109 @@ return function(t)
     vim.cmd("nohlsearch")
     vim.cmd("bwipeout!")
     assert(ok, "no search mark: " .. text())
+  end)
+
+  check("scrollbar: with 'smartcase', an uppercase search marks only case-sensitive matches", function()
+    -- regression: matchbufline() ignores 'smartcase', so `/Foo` also marked every `foo`
+    vim.cmd("enew")
+    local lines = {}
+    for i = 1, 400 do
+      lines[i] = (i == 20 and "Foo") or (i == 380 and "foo") or ("line " .. i)
+    end
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
+    local target = vim.api.nvim_get_current_win()
+    local ic, sc = vim.o.ignorecase, vim.o.smartcase
+    vim.o.ignorecase, vim.o.smartcase = true, true
+    require("lumen.ui.scrollbar").refresh()
+    vim.wait(400)
+    vim.fn.setreg("/", "Foo")
+    vim.v.hlsearch = 1
+    vim.api.nvim_exec_autocmds("CursorMoved", {})
+    local function rows()
+      for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+        local cfg = vim.api.nvim_win_get_config(w)
+        if cfg.relative == "win" and cfg.win == target and cfg.width == 1 then
+          return vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(w), 0, -1, false)
+        end
+      end
+      return {}
+    end
+    local function marked(from, to)
+      local r, n = rows(), 0
+      for i = math.floor(#r * from) + 1, math.floor(#r * to) do
+        n = n + ((r[i] or ""):find("─", 1, true) and 1 or 0)
+      end
+      return n
+    end
+    local ok = wait(1000, function()
+      return marked(0, 0.5) > 0
+    end)
+    local bottom = marked(0.75, 1)
+    vim.cmd("nohlsearch")
+    vim.o.ignorecase, vim.o.smartcase = ic, sc
+    vim.cmd("bwipeout!")
+    assert(ok, "no mark for the real match")
+    assert(bottom == 0, "`foo` was marked for the search `Foo`")
+  end)
+
+  check("statusline: quickfix keeps Lumen's line, capped search counts, diagnostics off hide counts", function()
+    local stl = require("lumen.ui.statusline")
+    -- regression: the qf ftplugin's window-local 'statusline' replaced Lumen's in the quickfix window
+    vim.fn.setqflist({ { filename = "x.lua", lnum = 1, text = "x" } }, "r")
+    vim.cmd("copen")
+    local own = vim.wo.statusline
+    vim.cmd("cclose")
+    assert(own:find("lumen.ui.statusline", 1, true), "the quickfix window has its own statusline: " .. own)
+    vim.fn.setqflist({}, "r")
+
+    -- regression: past 999 matches the count read 1000/1000
+    vim.cmd("enew")
+    local lines = {}
+    for i = 1, 3000 do
+      lines[i] = "match"
+    end
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
+    vim.fn.setreg("/", "match")
+    vim.v.hlsearch = 1
+    vim.api.nvim_win_set_cursor(0, { 2500, 0 })
+    vim.wait(250) -- the count is cached briefly
+    local text = vim.api.nvim_eval_statusline(stl.render(), {}).str
+    assert(text:find(">999/>999", 1, true), "capped count shown as exact: " .. text)
+    vim.cmd("nohlsearch")
+    vim.v.hlsearch = 0
+
+    -- regression: <leader>ud hid diagnostics but not their counts
+    local ns = vim.api.nvim_create_namespace("lumen_test_stl")
+    vim.diagnostic.set(ns, 0, { { lnum = 0, col = 0, message = "x", severity = 1 } })
+    vim.wait(50)
+    local icon = require("lumen.icons").diagnostics.Error
+    assert(vim.api.nvim_eval_statusline(stl.render(), {}).str:find(icon .. "1", 1, true), "no error count")
+    vim.diagnostic.enable(false, { bufnr = 0 })
+    local off = vim.api.nvim_eval_statusline(stl.render(), {}).str
+    vim.diagnostic.enable(true, { bufnr = 0 })
+    vim.diagnostic.reset(ns, 0)
+    vim.cmd("bwipeout!")
+    assert(not off:find(icon .. "1", 1, true), "counts shown with diagnostics off: " .. off)
+  end)
+
+  check("winbar: only the current window's file name is highlighted as active", function()
+    -- regression: inside %{%…%} the drawn window is temporarily current, so every window looked active
+    vim.cmd("edit lua/lumen/icons.lua")
+    vim.cmd("vsplit lua/lumen/init.lua")
+    local cur = vim.api.nvim_get_current_win()
+    local other = vim.fn.win_getid(vim.fn.winnr("#"))
+    local function file_hl(win)
+      local res =
+        vim.api.nvim_eval_statusline(vim.wo[win].winbar, { winid = win, use_winbar = true, highlights = true })
+      local groups = vim.tbl_map(function(h)
+        return h.group
+      end, res.highlights)
+      return table.concat(groups, " ")
+    end
+    local mine, theirs = file_hl(cur), file_hl(other)
+    vim.cmd("only")
+    assert(mine:find("LumenWinbarFile", 1, true), "the current window's file isn't highlighted: " .. mine)
+    assert(not theirs:find("LumenWinbarFile", 1, true), "an inactive window looks active: " .. theirs)
   end)
 
   check("scrollbar: stays inside the text area of a window with a winbar", function()

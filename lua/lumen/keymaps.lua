@@ -39,8 +39,9 @@ map("n", "<leader>wd", "<C-W>c", { desc = "Close window", remap = true })
 -- ── buffers ──────────────────────────────────────────────────
 map("n", "<S-h>", "<cmd>bprevious<cr>", { desc = "Prev buffer" })
 map("n", "<S-l>", "<cmd>bnext<cr>", { desc = "Next buffer" })
-map("n", "[b", "<cmd>bprevious<cr>", { desc = "Prev buffer" })
-map("n", "]b", "<cmd>bnext<cr>", { desc = "Next buffer" })
+-- Ex commands with v:count1, like Neovim's own [b ]b: counts work, errors read as plain E-messages
+map("n", "[b", "<cmd>exe v:count1 . 'bprevious'<cr>", { desc = "Prev buffer" })
+map("n", "]b", "<cmd>exe v:count1 . 'bnext'<cr>", { desc = "Next buffer" })
 map("n", "<leader>bb", "<cmd>e #<cr>", { desc = "Alternate buffer" })
 map("n", "<leader>`", "<cmd>e #<cr>", { desc = "Alternate buffer" })
 map("n", "<leader>bd", function()
@@ -75,20 +76,31 @@ map({ "i", "n", "s" }, "<esc>", function()
   return "<esc>"
 end, { expr = true, desc = "Escape & clear search" })
 
-map("n", "<A-j>", "<cmd>execute 'move .+' . v:count1<cr>==", { desc = "Move line down" })
-map("n", "<A-k>", "<cmd>execute 'move .-' . (v:count1 + 1)<cr>==", { desc = "Move line up" })
-map("i", "<A-j>", "<esc><cmd>m .+1<cr>==gi", { desc = "Move line down" })
-map("i", "<A-k>", "<esc><cmd>m .-2<cr>==gi", { desc = "Move line up" })
-map("x", "<A-j>", ":<C-u>execute \"'<,'>move '>+\" . v:count1<cr>gv=gv", { desc = "Move lines down" })
-map("x", "<A-k>", ":<C-u>execute \"'<,'>move '<-\" . (v:count1 + 1)<cr>gv=gv", { desc = "Move lines up" })
+-- distances are clamped to the buffer: on the first / last line the move is a no-op, not E16
+map("n", "<A-j>", "<cmd>execute 'move .+' . min([v:count1, line('$') - line('.')])<cr>==", { desc = "Move line down" })
+map("n", "<A-k>", "<cmd>execute 'move .-' . min([v:count1 + 1, line('.')])<cr>==", { desc = "Move line up" })
+map("i", "<A-j>", "<esc><cmd>execute 'move .+' . min([1, line('$') - line('.')])<cr>==gi", { desc = "Move line down" })
+map("i", "<A-k>", "<esc><cmd>execute 'move .-' . min([2, line('.')])<cr>==gi", { desc = "Move line up" })
+map(
+  "x",
+  "<A-j>",
+  ":<C-u>execute \"'<,'>move '>+\" . min([v:count1, line('$') - line(\"'>\")])<cr>gv=gv",
+  { desc = "Move lines down" }
+)
+map(
+  "x",
+  "<A-k>",
+  ":<C-u>execute \"'<,'>move '<-\" . min([v:count1 + 1, line(\"'<\")])<cr>gv=gv",
+  { desc = "Move lines up" }
+)
 
 -- stay in visual mode while indenting
-map("x", "<", "<gv")
-map("x", ">", ">gv")
+map("x", "<", "<gv", { desc = "Indent left (keep selection)" })
+map("x", ">", ">gv", { desc = "Indent right (keep selection)" })
 
 -- undo break-points while typing
 for _, c in ipairs({ ",", ".", ";" }) do
-  map("i", c, c .. "<c-g>u")
+  map("i", c, c .. "<c-g>u", { desc = "Undo break-point" })
 end
 
 map("n", "gco", "o<esc>Vcx<esc><cmd>normal gcc<cr>fxa<bs>", { desc = "Add comment below" })
@@ -97,12 +109,28 @@ map("n", "gcO", "O<esc>Vcx<esc><cmd>normal gcc<cr>fxa<bs>", { desc = "Add commen
 map("n", "<leader>fn", "<cmd>enew<cr>", { desc = "New file" })
 
 -- ── lists & diagnostics ──────────────────────────────────────
-map("n", "[q", vim.cmd.cprev, { desc = "Prev quickfix" })
-map("n", "]q", vim.cmd.cnext, { desc = "Next quickfix" })
+map("n", "[q", "<cmd>exe v:count1 . 'cprevious'<cr>", { desc = "Prev quickfix" })
+map("n", "]q", "<cmd>exe v:count1 . 'cnext'<cr>", { desc = "Next quickfix" })
 
-local function diag_jump(count, severity)
+-- show the diagnostic jumped to in a float. 0.13 deprecates `float` (a warning on every jump)
+-- for `on_jump`; older versions only know `float`
+local show_float = vim.fn.has("nvim-0.13") == 1
+    and {
+      on_jump = function(diagnostic, bufnr)
+        if diagnostic then
+          vim.diagnostic.open_float({ bufnr = bufnr, scope = "cursor", focus = false })
+        end
+      end,
+    }
+  or { float = true }
+
+---@param dir 1|-1
+local function diag_jump(dir, severity)
   return function()
-    vim.diagnostic.jump({ count = count, float = true, severity = severity and vim.diagnostic.severity[severity] })
+    vim.diagnostic.jump(vim.tbl_extend("force", {
+      count = dir * vim.v.count1, -- 3]d jumps three diagnostics
+      severity = severity and vim.diagnostic.severity[severity],
+    }, show_float))
   end
 end
 map("n", "]d", diag_jump(1), { desc = "Next diagnostic" })
@@ -183,6 +211,45 @@ if _G.Snacks then
       vim.b.lumen_autoformat = state
     end,
   }):map("<leader>uF")
+  -- plugin toggles live here, not in the plugins' configs, so they exist before those load
+  if Lumen.has("mini.pairs") then
+    Snacks.toggle({
+      name = "Auto pairs",
+      get = function()
+        return not vim.g.minipairs_disable -- mini.pairs reads it on every key
+      end,
+      set = function(state)
+        vim.g.minipairs_disable = not state
+      end,
+    }):map("<leader>up")
+  end
+  if Lumen.has("gitsigns.nvim") then
+    -- gitsigns' defaults until it has loaded (requiring it loads it)
+    local function gs(key, default)
+      if package.loaded.gitsigns then
+        return require("gitsigns.config").config[key]
+      end
+      return default
+    end
+    Snacks.toggle({
+      name = "Git signs",
+      get = function()
+        return gs("signcolumn", true)
+      end,
+      set = function(state)
+        require("gitsigns").toggle_signs(state)
+      end,
+    }):map("<leader>uG")
+    Snacks.toggle({
+      name = "Inline blame",
+      get = function()
+        return gs("current_line_blame", false)
+      end,
+      set = function(state)
+        require("gitsigns").toggle_current_line_blame(state)
+      end,
+    }):map("<leader>uB")
+  end
 end
 map("n", "<leader>uC", function()
   if _G.Snacks then
@@ -201,15 +268,7 @@ map("n", "<leader>uI", function()
 end, { desc = "Inspect tree" })
 
 -- ── terminal ─────────────────────────────────────────────────
----@param cwd? string
-local function terminal(cwd)
-  if _G.Snacks then
-    return Snacks.terminal(nil, { cwd = cwd })
-  end
-  vim.cmd("botright new")
-  vim.fn.jobstart(vim.o.shell, { term = true, cwd = cwd })
-  vim.cmd.startinsert()
-end
+local terminal = Lumen.terminal
 map({ "n", "t" }, "<C-/>", function()
   terminal(Lumen.root())
 end, { desc = "Terminal (root)" })
@@ -244,8 +303,11 @@ if vim.api.nvim_mcursor then
   local ns = vim.api.nvim_create_namespace("nvim.multicursor")
   map({ "n", "x" }, "<leader>mw", function()
     local word
-    if vim.fn.mode():find("[vV]") then
-      local lines = vim.fn.getregion(vim.fn.getpos("v"), vim.fn.getpos("."))
+    local mode = vim.fn.mode()
+    if mode:find("^[vV\22]") then
+      local lines = vim.fn.getregion(vim.fn.getpos("v"), vim.fn.getpos("."), { type = mode })
+      -- a block is a column of separate pieces: match its first row
+      lines = mode == "\22" and { lines[1] } or lines
       word = "\\C\\V" .. vim.fn.escape(table.concat(lines, "\n"), "\\")
       vim.api.nvim_feedkeys(vim.keycode("<esc>"), "nx", false)
     else
@@ -259,7 +321,8 @@ if vim.api.nvim_mcursor then
         n = n + 1
       end
     end
-    Lumen.notify(("%d extra cursors — edit away, <C-l> to clear"):format(n))
+    -- not <C-l>: Neovim's default clears cursors, but Lumen maps it to window navigation
+    Lumen.notify(("%d extra cursors — edit away, <leader>mc to clear"):format(n))
   end, { desc = "Cursors on every match" })
   map("n", "<leader>mc", function()
     vim.api.nvim_buf_clear_namespace(0, ns, 0, -1)

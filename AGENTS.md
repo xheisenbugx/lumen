@@ -123,7 +123,7 @@ package names in `tools`, conform formatter names and nvim-lint linter names. Th
   `bash scripts/test.sh` also works), never with `sh` or `zsh`, and don't source `scripts/env.sh`
   from zsh: it relies on `BASH_SOURCE`. The sandbox defaults to `.tests/` (gitignored). Set `LUMEN_TEST_DIR=/some/dir` to put
   it elsewhere. The first run installs every plugin, parser and server, so it is slow.
-- The checks live in `tests/smoke/<area>.lua` (theme, ui, packs, tasks, why, startup, update), loaded in
+- The checks live in `tests/smoke/<area>.lua` (theme, ui, packs, tasks, why, startup, keys, update), loaded in
   that order by `tests/smoke.lua`, which holds the helpers (`check`, `wait`, `child`, `fake_server`,
   `SLOW`). `./scripts/test.sh <text>` runs only the checks whose name contains `<text>`. Later areas may
   rely on state earlier ones left (an attached lua_ls). "no startup errors" names the first check that
@@ -212,6 +212,16 @@ Rules:
   prompting to `:Lumen trust`.
 - render-markdown.nvim leaves `E31: No such mapping` in `v:errmsg` the first time it loads (a caught
   unmap). A test that opens the first markdown buffer must tolerate exactly that (see the news test).
+- **Every keymap is pressed by a test** (`tests/keys_probe.lua`, run by `tests/smoke/keys.lua` in a child
+  Neovim): normal, visual and insert mode, in a scratch git project, with Neovim's own defaults left out.
+  A new keymap that errors fails CI. Give it a precondition in `SETUP` if it needs one (an alternate file,
+  a split), and only `SKIP` keys that leave the sandbox (quit, restart, open a browser).
+- **`LUMEN_SELFTEST=1`** marks the throwaway Neovim of `:Lumen update`'s check: no Mason or parser
+  installs start there (`lsp.selftest()`), or a killed child leaves Mason's staging lockfiles behind.
+- **Snacks keys terminals by cmd + cwd.** Inside a terminal, `Lumen.root()` is the cwd (no file), so
+  toggles reuse the cwd stored on the terminal buffer (`b:lumen_terminal_cwd`, see `Lumen.terminal`).
+- Inside `%{%…%}` (winbar, statusline expressions) the window being drawn is temporarily current: compare
+  with `g:actual_curwin`, not `nvim_get_current_win()`.
 - **Headless tests must stub every prompt.** `prompt_restart` and anything else that ends in
   `vim.ui.select` blocks a headless run forever (it's Neovim's `inputlist()` there). Watch for prompts
   that are *scheduled*: restore the stub only after a `vim.wait()` lets them fire.

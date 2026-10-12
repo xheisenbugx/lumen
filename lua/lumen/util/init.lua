@@ -116,6 +116,49 @@ function M.icon(category, name)
   end
 end
 
+-- Terminals are keyed by their cwd (Snacks keys them by cmd + cwd). Inside one, the root of the
+-- terminal buffer is not the root it was opened for (no file: it falls back to the cwd), so
+-- toggling has to reuse the cwd stored on the terminal, or <C-/> opens a second terminal.
+local fallback_terms = {} ---@type table<string, integer> cwd → terminal buffer (snacks.nvim disabled)
+
+--- open, or hide, the terminal for `cwd` (default: the cwd)
+---@param cwd? string
+function M.terminal(cwd)
+  local stored = vim.b.lumen_terminal_cwd
+  if stored ~= nil then
+    cwd = stored ~= "" and stored or nil
+  end
+  if _G.Snacks then
+    local term = Snacks.terminal(nil, { cwd = cwd })
+    if term and term.buf and vim.api.nvim_buf_is_valid(term.buf) then
+      vim.b[term.buf].lumen_terminal_cwd = cwd or ""
+    end
+    return term
+  end
+  -- snacks.nvim disabled: the same toggle with a plain split
+  local key = cwd or ""
+  local buf = fallback_terms[key]
+  if buf and vim.api.nvim_buf_is_valid(buf) then
+    local win = vim.fn.bufwinid(buf)
+    if win ~= -1 then
+      if #vim.api.nvim_list_wins() > 1 then
+        vim.api.nvim_win_close(win, true)
+      end
+      return
+    end
+    vim.cmd("botright sbuffer " .. buf)
+    vim.cmd.startinsert()
+    return
+  end
+  vim.cmd("botright new")
+  vim.fn.jobstart(vim.o.shell, { term = true, cwd = cwd })
+  buf = vim.api.nvim_get_current_buf()
+  vim.bo[buf].bufhidden = "hide"
+  vim.b[buf].lumen_terminal_cwd = key
+  fallback_terms[key] = buf
+  vim.cmd.startinsert()
+end
+
 function M.in_tmux()
   return vim.env.TMUX ~= nil and vim.env.TMUX ~= ""
 end

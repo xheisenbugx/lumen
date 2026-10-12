@@ -186,7 +186,11 @@ function M.trust()
   if buf ~= -1 and vim.bo[buf].modified then
     return Lumen.warn(("Save %s first: trust covers what's on disk"):format(M.name))
   end
-  local ok, err = vim.secure.trust({ action = "allow", path = path })
+  -- what you reviewed is the buffer: if the file changed on disk since (git pull), trust what's in
+  -- the buffer. The file then doesn't match the trusted hash, so the unseen code still won't run
+  local opts = (buf ~= -1 and vim.api.nvim_buf_is_loaded(buf)) and { action = "allow", bufnr = buf }
+    or { action = "allow", path = path }
+  local ok, err = vim.secure.trust(opts)
   if not ok then
     return Lumen.error(("couldn't trust %s: %s"):format(path, err))
   end
