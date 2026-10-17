@@ -33,7 +33,7 @@
   },
   "grug-far.nvim": {
     "branch": "main",
-    "commit": "11595bf747edc270bce2069d1020502ad4ae56cf"
+    "commit": "bbde8ef5ae46ceee2c3bd8b21fc048c5f8ffbfc0"
   },
   "lazy.nvim": {
     "branch": "main",
@@ -121,7 +121,7 @@
   },
   "nvim-lspconfig": {
     "branch": "master",
-    "commit": "ac062d0d01c019c0dbdb798968f3e5d8b35c3853"
+    "commit": "45a3a444b710511c39abca3b60bb6e23a21e3de5"
   },
   "nvim-nio": {
     "branch": "master",
@@ -193,6 +193,6 @@
   },
   "yazi.nvim": {
     "branch": "main",
-    "commit": "39a28c41545a4624ba591cc7ade91a11e0de069d"
+    "commit": "0317971f576d46ef5792438e1d53c3d0472dbaf2"
   }
 }
