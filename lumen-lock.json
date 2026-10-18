@@ -129,7 +129,7 @@
   },
   "nvim-treesitter": {
     "branch": "main",
-    "commit": "ca581c3436fc2b236847f5b739ebc263739e5ca6"
+    "commit": "d4a9b23a383266bdb0bfb42d565f31e83f27be5e"
   },
   "nvim-treesitter-textobjects": {
     "branch": "main",
@@ -173,7 +173,7 @@
   },
   "sqmeow.nvim": {
     "branch": "master",
-    "commit": "0c2db402309aedbeaacfa5da4865e54af87d2363"
+    "commit": "0a9ecaa6eb4d5762b7079e1216cdb1a18d1ec092"
   },
   "todo-comments.nvim": {
     "branch": "main",
@@ -193,6 +193,6 @@
   },
   "yazi.nvim": {
     "branch": "main",
-    "commit": "0317971f576d46ef5792438e1d53c3d0472dbaf2"
+    "commit": "cbc61f1f33520c40688a966d9d0ecdbe962b6731"
   }
 }
