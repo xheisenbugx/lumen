@@ -129,7 +129,7 @@
   },
   "nvim-treesitter": {
     "branch": "main",
-    "commit": "d4a9b23a383266bdb0bfb42d565f31e83f27be5e"
+    "commit": "d3e4a28b63961ba972b0945d66c73b6eec969953"
   },
   "nvim-treesitter-textobjects": {
     "branch": "main",
@@ -149,7 +149,7 @@
   },
   "org.nvim": {
     "branch": "main",
-    "commit": "6714808855910b25356fbc583fa38015315dea18"
+    "commit": "5c462ba7c324b48a88e5b08af0a260d6224488e6"
   },
   "persistence.nvim": {
     "branch": "main",
@@ -193,6 +193,6 @@
   },
   "yazi.nvim": {
     "branch": "main",
-    "commit": "cbc61f1f33520c40688a966d9d0ecdbe962b6731"
+    "commit": "7bfac104337295ebdf2295669719edff20b7866a"
   }
 }
