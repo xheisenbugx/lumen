@@ -1,7 +1,7 @@
 {
   "SchemaStore.nvim": {
     "branch": "main",
-    "commit": "82037f0534e303c3bb39472340fd23b9c46ab528"
+    "commit": "2af1680d9c054f10ce9ebc1f28443178c2b5fcbf"
   },
   "blink.cmp": {
     "branch": "main",
@@ -61,11 +61,11 @@
   },
   "mini.hipatterns": {
     "branch": "main",
-    "commit": "8e18b4970f21be0db157104786d2be43058cdd44"
+    "commit": "247c0173579a29af60f25f00671a75c57090be9c"
   },
   "mini.icons": {
     "branch": "main",
-    "commit": "f916635dc5ae2f479fbb9ab8184bb9444b62e86c"
+    "commit": "9e4c1645ce2b78afd6191b6be2c38bc0f998dd48"
   },
   "mini.pairs": {
     "branch": "main",
@@ -121,7 +121,7 @@
   },
   "nvim-lspconfig": {
     "branch": "master",
-    "commit": "45a3a444b710511c39abca3b60bb6e23a21e3de5"
+    "commit": "77b7432d4770d23b277d37923e5a08a442d8bb07"
   },
   "nvim-nio": {
     "branch": "master",
@@ -193,6 +193,6 @@
   },
   "yazi.nvim": {
     "branch": "main",
-    "commit": "c09892b31bd7132b4fdeadcda0bb32ecd95b5100"
+    "commit": "fe0ad94de52da96a2386863e99229661bed5c658"
   }
 }
