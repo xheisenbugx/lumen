@@ -29,7 +29,7 @@
   },
   "gitsigns.nvim": {
     "branch": "main",
-    "commit": "fd780920613e541cbdfac41bf711583ed49f9249"
+    "commit": "683137003522aebd6948358334164a6ba2ca7cd5"
   },
   "grug-far.nvim": {
     "branch": "main",
@@ -45,7 +45,7 @@
   },
   "mason-lspconfig.nvim": {
     "branch": "main",
-    "commit": "27b98a54bc04d2e8649d2e701c89aec0d02c11a4"
+    "commit": "c4ef013d41f6db041b283eef55a63e579d76763f"
   },
   "mason-nvim-dap.nvim": {
     "branch": "main",
@@ -149,7 +149,7 @@
   },
   "org.nvim": {
     "branch": "main",
-    "commit": "61a0949335c28fadcb6db624f14d2ded413250ce"
+    "commit": "abbb1eb1444899ffd31c79e6f5dbad832c44e028"
   },
   "persistence.nvim": {
     "branch": "main",
@@ -193,6 +193,6 @@
   },
   "yazi.nvim": {
     "branch": "main",
-    "commit": "9507ba68dcd7cd199fed649a931f3711aeb78034"
+    "commit": "98c9fd784cba3660f1d05709afb07581af48f776"
   }
 }
