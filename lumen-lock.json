@@ -45,7 +45,7 @@
   },
   "mason-lspconfig.nvim": {
     "branch": "main",
-    "commit": "c4ef013d41f6db041b283eef55a63e579d76763f"
+    "commit": "c302d3fcaf4727ee7d48b20e7c293668ed1f6d98"
   },
   "mason-nvim-dap.nvim": {
     "branch": "main",
@@ -65,7 +65,7 @@
   },
   "mini.icons": {
     "branch": "main",
-    "commit": "9e4c1645ce2b78afd6191b6be2c38bc0f998dd48"
+    "commit": "eab3e692d796d78ea6ffc978d8a380ff26fcf4e3"
   },
   "mini.pairs": {
     "branch": "main",
@@ -149,7 +149,7 @@
   },
   "org.nvim": {
     "branch": "main",
-    "commit": "abbb1eb1444899ffd31c79e6f5dbad832c44e028"
+    "commit": "a8b7754b213192f45995c243358ff71b92f20075"
   },
   "persistence.nvim": {
     "branch": "main",
@@ -193,6 +193,6 @@
   },
   "yazi.nvim": {
     "branch": "main",
-    "commit": "98c9fd784cba3660f1d05709afb07581af48f776"
+    "commit": "35528034a4c07036f6f4e186bb5daf0fd55f083f"
   }
 }
