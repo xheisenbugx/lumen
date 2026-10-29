@@ -123,6 +123,41 @@ return function(t)
     assert(spec.opts.keymaps.editor.execute_buffer == "<leader>Dx", vim.inspect(spec.opts))
   end)
 
+  check("yazi pack: takes <leader>e / E and turns the Snacks explorer off", function()
+    local packs = require("lumen.packs")
+    local orig = packs.enabled
+    -- the core snacks specs, as plugins/ui.lua builds them with or without the pack
+    local function snacks(with_yazi)
+      packs.enabled = function()
+        return { yazi = with_yazi or nil }, {}
+      end
+      local ok, specs = pcall(dofile, vim.api.nvim_get_runtime_file("lua/lumen/plugins/ui.lua", false)[1])
+      packs.enabled = orig
+      assert(ok, specs)
+      local opts, lhs = nil, {}
+      for _, s in ipairs(specs) do
+        if s[1] == "folke/snacks.nvim" then
+          opts = opts or s.opts
+          for _, k in ipairs(s.keys or {}) do
+            lhs[k[1]] = true
+          end
+        end
+      end
+      return assert(opts, "no snacks spec"), lhs
+    end
+    local opts, lhs = snacks(false)
+    assert(opts.explorer.enabled and lhs["<leader>e"] and lhs["<leader>E"], "explorer missing without yazi")
+    opts, lhs = snacks(true)
+    assert(not opts.explorer.enabled and not opts.explorer.replace_netrw, vim.inspect(opts.explorer))
+    assert(not lhs["<leader>e"] and not lhs["<leader>E"], "snacks still maps the explorer keys")
+    local yazi = {}
+    for _, k in ipairs(require("lumen.packs.yazi").plugins[1].keys) do
+      yazi[k[1]] = true
+    end
+    assert(yazi["<leader>e"] and yazi["<leader>E"], "yazi doesn't map <leader>e / E")
+    assert(require("lumen.packs.yazi").plugins[1].opts.open_for_directories, "yazi must open directories")
+  end)
+
   -- packs.json is real state: tests that toggle packs put it back afterwards
   local function with_pack_state(fn)
     local file = vim.fn.stdpath("state") .. "/lumen/packs.json"

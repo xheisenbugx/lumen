@@ -3,6 +3,13 @@
 What changed for you, newest first. `:Lumen update` shows the sections newer than the version you
 were running, and `:Lumen news` shows them all.
 
+## 0.4.0
+
+- **The `yazi` pack replaces the explorer.** With it enabled, `<leader>e` opens yazi at the project
+  root and `<leader>E` at the cwd, the Snacks explorer sidebar is turned off, and yazi opens
+  directories (`nvim .`, `:e some/dir`). `<leader>y` still opens yazi at the current file;
+  `<leader>Y` is gone (it's `<leader>E` now).
+
 ## 0.3.2
 
 - **`<C-/>` hides the terminal that's shown, from any window.** With the terminal on screen and
