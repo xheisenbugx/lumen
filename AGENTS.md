@@ -45,6 +45,7 @@ Module map (`lua/lumen/`):
 | `health.lua` | `:checkhealth lumen` |
 | `lsp.lua` | `vim.lsp.config`/`vim.lsp.enable` (`add()`, also used by packs enabled at runtime), on_attach keymaps, Mason auto-install, `$MASON/` expansion |
 | `treesitter.lua` | parser attach / background install helpers shared by the nvim-treesitter spec and runtime packs |
+| `remember.lua` | keeps the colorscheme, `<leader>u` toggles and diagnostics display you pick across restarts (`stdpath("state")/lumen/ui.json`); a pick gives way when the config's value changes; `:Lumen forget` |
 | `diagnostics.lua` | diagnostic display modes `text` / `lines` / `signs` and cycling between them |
 | `packs.lua` + `packs/*.lua` | language packs, their state file, `extends`, `requires`, applying packs at runtime, suggestions and the picker |
 | `tasks.lua` | task discovery (npm, make, cargo, go, `.vscode/tasks.json`…), terminal and background runs, quickfix, watch mode |
@@ -216,6 +217,9 @@ Rules:
   Neovim): normal, visual and insert mode, in a scratch git project, with Neovim's own defaults left out.
   A new keymap that errors fails CI. Give it a precondition in `SETUP` if it needs one (an alternate file,
   a split), and only `SKIP` keys that leave the sandbox (quit, restart, open a browser).
+- **The suite turns `remember` off** (`tests/smoke.lua`, `tests/keys_probe.lua`): checks that switch
+  colorschemes or press every toggle would otherwise carry those picks into the next run through
+  `ui.json`. A new test that starts a child Neovim and toggles something must do the same.
 - **`LUMEN_SELFTEST=1`** marks the throwaway Neovim of `:Lumen update`'s check: no Mason or parser
   installs start there (`lsp.selftest()`), or a killed child leaves Mason's staging lockfiles behind.
 - **Snacks keys terminals by cmd + cwd.** Inside a terminal, `Lumen.root()` is the cwd (no file), so

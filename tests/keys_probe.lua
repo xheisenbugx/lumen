@@ -11,6 +11,9 @@ local SKIP = {
   ["n <Space>K"] = "runs 'keywordprg' (man) on the word under the cursor",
 }
 
+-- pressing every toggle must not reach the next Neovim through lumen.remember
+require("lumen.config").remember = false
+
 local dir ---@type string the scratch project (set below)
 
 -- keys that drive an optional tool (README: "Optional: fd, lazygit, node"): skipped without it

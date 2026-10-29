@@ -88,6 +88,9 @@ local files = { "theme", "ui", "packs", "tasks", "why", "startup", "keys", "upda
 
 local function run()
   io.stdout:write("\nLumen smoke test\n")
+  -- the checks switch colorschemes and flip toggles: don't let lumen.remember carry them into
+  -- the next run (the remember check turns it on in its own child Neovims)
+  require("lumen.config").remember = false
   local dir = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h") .. "/smoke/"
   for _, name in ipairs(files) do
     local ok, err = pcall(function()

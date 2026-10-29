@@ -538,4 +538,55 @@ return function(t)
     assert(ok, err)
     assert(unseen == nil, "code you never saw became trusted: " .. tostring(unseen))
   end)
+
+  check("remember: colorscheme, toggles and diagnostics display survive a restart", function()
+    local file = require("lumen.remember").file
+    local saved = vim.fn.filereadable(file) == 1 and vim.fn.readfile(file) or nil
+    os.remove(file)
+    local report = [[
+      io.stdout:write(vim.json.encode({
+        colors = vim.g.colors_name, bg = vim.o.background, wrap = vim.o.wrap, gwrap = vim.go.wrap,
+        spell = vim.o.spell, diagnostics = require("lumen.diagnostics").mode,
+        autoformat = vim.g.lumen_autoformat, file = vim.fn.filereadable(require("lumen.remember").file),
+      }) .. "\n")
+      vim.cmd("qa!")
+    ]]
+    local ok, err = pcall(function()
+      -- 1. pick things from the UI
+      local res, out = child([[
+        vim.defer_fn(function()
+          vim.cmd.colorscheme("lumen-dawn")
+          Snacks.toggle.toggles.wrap:toggle()
+          Snacks.toggle.toggles.format_on_save_global:toggle()
+          require("lumen.diagnostics").cycle()
+          vim.wait(100)
+          ]] .. report .. [[
+        end, 300)
+      ]])
+      assert(res.colors == "lumen-dawn" and res.wrap and res.file == 1, vim.inspect(res) .. (out.stderr or ""))
+      -- 2. a restart brings them back, in every window
+      res, out = child("vim.defer_fn(function() " .. report .. " end, 300)")
+      assert(res.colors == "lumen-dawn" and res.bg == "light", "colorscheme forgotten: " .. vim.inspect(res))
+      assert(res.wrap and res.gwrap, "wrap forgotten (or only for one window): " .. vim.inspect(res))
+      assert(res.autoformat == false and res.diagnostics == "lines", vim.inspect(res) .. (out.stderr or ""))
+      assert(res.spell == false, "an untouched toggle changed: " .. vim.inspect(res))
+      -- 3. changing the setting in the config wins over the remembered pick
+      res, out = child("vim.defer_fn(function() " .. report .. " end, 300)", {
+        ["lua/config/lumen.lua"] = 'return { colorscheme = "lumen-night", diagnostics = "signs" }',
+      })
+      assert(res.colors == "lumen-night" and res.bg == "dark", "config lost to the pick: " .. vim.inspect(res))
+      assert(res.diagnostics == "signs" and res.wrap, vim.inspect(res) .. (out.stderr or ""))
+      -- 4. :Lumen forget drops the rest
+      res, out = child("vim.defer_fn(function() vim.cmd('Lumen forget') " .. report .. " end, 300)")
+      assert(res.file == 0, ":Lumen forget kept the file: " .. vim.inspect(res) .. (out.stderr or ""))
+      res = child("vim.defer_fn(function() " .. report .. " end, 300)")
+      assert(res.colors == "lumen" and not res.wrap and res.autoformat ~= false, vim.inspect(res))
+    end)
+    if saved then
+      vim.fn.writefile(saved, file)
+    else
+      os.remove(file)
+    end
+    assert(ok, err)
+  end)
 end

@@ -75,6 +75,13 @@ local actions = {
       vim.o.background = vim.o.background == "dark" and "light" or "dark"
     end,
   },
+  forget = {
+    desc = "Forget the colorscheme and toggles you picked (back to your config's)",
+    run = function()
+      require("lumen.remember").reset()
+      Lumen.notify("Forgot your colorscheme and toggles: restart to get your config's back")
+    end,
+  },
   config = {
     desc = "Edit your config",
     run = function()
@@ -124,6 +131,7 @@ local names = {
   "project",
   "trust",
   "theme",
+  "forget",
   "health",
   "update",
   "rollback",

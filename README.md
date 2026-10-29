@@ -312,6 +312,7 @@ return {
 | `format_on_save` | `true` | |
 | `update_channel` | `"stable"` | `"stable"`: CI-tested plugin versions · `"latest"`: newest of everything |
 | `inlay_hints` | `true` | |
+| `remember` | `true` | keep the colorscheme, `<leader>u` toggles and diagnostics display you pick across restarts |
 | `statusline` | `true` | Lumen's statusline |
 | `tabline` | `true` | Lumen's tabline |
 | `ui2` | `true` | Neovim's message/cmdline UI (0.12+), `cmdheight=0` |
@@ -508,6 +509,11 @@ LazyVim's, so your muscle memory carries over.
 | `uC` | colorschemes | `un` | dismiss notifications |
 | `up` | auto pairs | `uG` / `uB` | git signs / inline blame |
 
+Lumen remembers the toggles you flip, the colorscheme (`uC`, `ub`) and the diagnostics display across
+restarts. Zen, zoom, dim, treesitter and the per-buffer format toggle are left out. A remembered choice
+gives way when you change that setting in your config, and `:Lumen forget` drops them all
+(`remember = false` turns it off).
+
 **Windows, buffers, tabs & sessions**
 
 | key | action | key | action |
@@ -545,6 +551,7 @@ Search everything live with `<leader>sk` or `:Lumen keys`.
 | `:Lumen project` | edit this project's `.lumen.lua` |
 | `:Lumen trust` | trust this project's `.lumen.lua` and apply it |
 | `:Lumen theme` | toggle night / dawn |
+| `:Lumen forget` | forget the colorscheme and toggles you picked (back to your config's) |
 | `:Lumen config` | edit your config |
 | `:Lumen keys` | search all keymaps |
 | `:Lumen profile` | startup profile |
