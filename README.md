@@ -442,7 +442,7 @@ LazyVim's, so your muscle memory carries over.
 |---|---|---|---|
 | `<leader><space>` | files (smart) | `<leader>/` | grep (root) |
 | `<leader>,` | buffers | `<leader>:` | command history |
-| `<leader>e` / `E` | explorer (root / cwd) | `-` | oil (edit dir as buffer) |
+| `<leader>e` / `E` | explorer (root / cwd; yazi with the `yazi` pack) | `-` | oil (edit dir as buffer) |
 | `<leader>ff` / `fF` | files (root / cwd) | `<leader>fg` | git files |
 | `<leader>fr` / `fR` | recent (all / cwd) | `<leader>fb` | buffers |
 | `<leader>fc` | config files | `<leader>fp` | projects |
@@ -522,7 +522,8 @@ LazyVim's, so your muscle memory carries over.
 
 **Packs:** `dap` adds `<leader>d*` and `F5` `F10` `F11`, `test` adds `<leader>t*`, `ai` adds
 `<leader>a*` (and `<Tab>` accepts a Copilot suggestion in insert mode), `git` adds Octo issues / PRs / review,
-`yazi` adds `<leader>y` / `Y`, `sql` adds the `<leader>D*` database keys (drawer, connections, scratchpads,
+`yazi` takes over `<leader>e` / `E` (yazi at the root / cwd, the Snacks explorer is turned off) and adds
+`<leader>y` (yazi at the current file), `sql` adds the `<leader>D*` database keys (drawer, connections, scratchpads,
 query history), and `org` brings org.nvim's own `<leader>o*` keys (agenda, capture, clocking).
 
 Search everything live with `<leader>sk` or `:Lumen keys`.

@@ -1,5 +1,8 @@
 local config = require("lumen.config")
 
+-- the yazi pack takes over the explorer: <leader>e / E open yazi (packs/yazi.lua), not Snacks.explorer
+local yazi = require("lumen.packs").enabled().yazi == true
+
 local logo = {
   "██╗     ██╗   ██╗███╗   ███╗███████╗███╗   ██╗",
   "██║     ██║   ██║████╗ ████║██╔════╝████╗  ██║",
@@ -64,7 +67,7 @@ return {
           return vim.bo[buf].buftype == "" and vim.g.snacks_indent ~= false and vim.b[buf].snacks_indent ~= false
         end,
       },
-      explorer = { enabled = true, replace_netrw = true },
+      explorer = { enabled = not yazi, replace_netrw = not yazi },
       picker = {
         enabled = true,
         ui_select = true,
@@ -125,8 +128,6 @@ return {
       { "<leader>/", function() Snacks.picker.grep({ cwd = Lumen.root() }) end, desc = "Grep (root)" },
       { "<leader>,", function() Snacks.picker.buffers() end, desc = "Buffers" },
       { "<leader>:", function() Snacks.picker.command_history() end, desc = "Command history" },
-      { "<leader>e", function() Snacks.explorer({ cwd = Lumen.root() }) end, desc = "Explorer (root)" },
-      { "<leader>E", function() Snacks.explorer() end, desc = "Explorer (cwd)" },
       { "<leader>n", function() Snacks.notifier.show_history() end, desc = "Notification history" },
       { "<leader>.", function() Snacks.scratch() end, desc = "Scratch buffer" },
       { "<leader>S", function() Snacks.scratch.select() end, desc = "Select scratch" },
@@ -189,6 +190,15 @@ return {
       { "]]", function() Snacks.words.jump(vim.v.count1) end, desc = "Next reference" },
       { "[[", function() Snacks.words.jump(-vim.v.count1) end, desc = "Prev reference" },
       { "<leader>un", function() Snacks.notifier.hide() end, desc = "Dismiss notifications" },
+    },
+  },
+
+  {
+    "folke/snacks.nvim",
+    -- stylua: ignore
+    keys = yazi and {} or {
+      { "<leader>e", function() Snacks.explorer({ cwd = Lumen.root() }) end, desc = "Explorer (root)" },
+      { "<leader>E", function() Snacks.explorer() end, desc = "Explorer (cwd)" },
     },
   },
 
