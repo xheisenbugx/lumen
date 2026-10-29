@@ -510,7 +510,8 @@ LazyVim's, so your muscle memory carries over.
 | `up` | auto pairs | `uG` / `uB` | git signs / inline blame |
 
 Lumen remembers the toggles you flip, the colorscheme (`uC`, `ub`) and the diagnostics display across
-restarts. Zen, zoom, dim, treesitter and the per-buffer format toggle are left out. A remembered choice
+restarts. Flip wrap or spelling in a filetype that sets its own (markdown, text, gitcommit) and it's
+remembered for that filetype. Zen, zoom, dim, treesitter and the per-buffer format toggle are left out. A remembered choice
 gives way when you change that setting in your config, and `:Lumen forget` drops them all
 (`remember = false` turns it off).
 

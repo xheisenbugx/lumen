@@ -131,6 +131,17 @@ local window_options = {
 ---then skips the toggle's own `set`
 ---@field plugin? string restore once this plugin has loaded (its toggle would load it)
 
+-- whether the current window's value of these options differs from the global one, i.e. the
+-- filetype set it (Lumen's prose autocmd turns on wrap and spell for markdown, text…)
+local function local_differs(options)
+  for _, option in ipairs(options) do
+    if vim.wo[option] ~= vim.go[option] then
+      return true
+    end
+  end
+  return false
+end
+
 --- restore a Snacks toggle and remember its changes
 ---@param id string Snacks.toggle id
 ---@param opts? lumen.remember.ToggleOpts
@@ -141,15 +152,51 @@ function M.toggle(id, opts)
     return
   end
   local key = "toggle." .. id
+  local options = window_options[id]
+  -- a single window option the filetype set is remembered for that filetype ("toggle.wrap:markdown"):
+  -- turning wrap off in a markdown buffer is about markdown, and the global value is off already
+  local per_ft = options and #options == 1
   local function restore()
     local base = opts.base and opts.base() or t:get()
+    if options and local_differs(options) then
+      base = not base -- the current window has the filetype's value, the global one is the other
+    end
     local set = t.opts.set
     t.opts.set = function(state)
+      local ft = vim.bo.filetype
+      local ft_key = per_ft and ft ~= "" and key .. ":" .. ft
+      local entry = ft_key and load()[ft_key]
+      local ft_base ---@type boolean?
+      if type(entry) == "table" then
+        ft_base = entry.base
+      elseif ft_key and local_differs(options) then
+        ft_base = t:get() -- the filetype's value, before this toggle
+      end
       set(state)
       if opts.apply then
         opts.apply(state)
       end
-      M.set(key, state, base)
+      if ft_key and ft_base ~= nil then
+        M.set(ft_key, state, ft_base)
+      else
+        M.set(key, state, base)
+      end
+    end
+    if per_ft then
+      vim.api.nvim_create_autocmd("FileType", {
+        group = vim.api.nvim_create_augroup("lumen_remember_" .. id, { clear = true }),
+        callback = function(ev)
+          local entry = load()[key .. ":" .. ev.match]
+          -- like the filetype's own settings: for the window showing the buffer
+          if type(entry) ~= "table" or ev.buf ~= vim.api.nvim_get_current_buf() then
+            return
+          end
+          -- only over the value the filetype gave when you picked (a config change wins)
+          if t:get() == entry.base and entry.value ~= entry.base then
+            set(entry.value)
+          end
+        end,
+      })
     end
     local saved = M.get(key, base)
     if type(saved) ~= "boolean" or saved == base then
@@ -158,13 +205,22 @@ function M.toggle(id, opts)
     if opts.apply then
       return opts.apply(saved)
     end
-    set(saved)
-    -- the toggle set the current window: give every window (and new ones) the same values
-    for _, option in ipairs(window_options[id] or {}) do
-      vim.go[option] = vim.wo[option]
-      for _, win in ipairs(vim.api.nvim_list_wins()) do
-        vim.wo[win][option] = vim.go[option]
-      end
+    if not options then
+      return set(saved)
+    end
+    -- every window (except where the filetype set its own value) and, from one of them, the global
+    -- value, so new windows get it too
+    local from
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+      vim.api.nvim_win_call(win, function()
+        if not local_differs(options) then
+          set(saved)
+        end
+        from = from or (t:get() == saved and win or nil)
+      end)
+    end
+    for _, option in ipairs(from and options or {}) do
+      vim.go[option] = vim.wo[from][option]
     end
   end
   if opts.plugin then

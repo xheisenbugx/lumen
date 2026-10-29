@@ -3,6 +3,13 @@
 What changed for you, newest first. `:Lumen update` shows the sections newer than the version you
 were running, and `:Lumen news` shows them all.
 
+## 0.5.1
+
+- **Toggles you flip in markdown, text or gitcommit buffers are remembered.** Lumen turns `wrap`
+  and `spell` on for prose filetypes, so turning wrap off in a markdown file matched the global
+  value and wasn't saved; the next start turned it back on. A wrap, spelling, conceal or relative
+  number toggle over a value the filetype set is now remembered for that filetype.
+
 ## 0.5.0
 
 - **Lumen remembers what you pick.** The colorscheme (`<leader>uC`, night / dawn with `<leader>ub`),
