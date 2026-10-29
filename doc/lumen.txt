@@ -166,6 +166,12 @@ prompts: an untrusted or edited file gets a notification instead.
 `:Lumen trust`                                                  *:Lumen-trust*
     Trust this project's `.lumen.lua` and apply it.
 
+`:Lumen forget`                                                *:Lumen-forget*
+    Forget the colorscheme, `<leader>u` toggles and diagnostics display you
+    picked. Lumen remembers them across restarts (`remember = true`), until
+    you change that setting in your config. Restart to get your config's
+    values back.
+
 `:Lumen config`     edit your config
 `:Lumen keys`       search all keymaps
 `:Lumen theme`      toggle night / dawn

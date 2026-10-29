@@ -3,6 +3,15 @@
 What changed for you, newest first. `:Lumen update` shows the sections newer than the version you
 were running, and `:Lumen news` shows them all.
 
+## 0.5.0
+
+- **Lumen remembers what you pick.** The colorscheme (`<leader>uC`, night / dawn with `<leader>ub`),
+  the `<leader>u` toggles (wrap, spelling, line numbers, conceal, diagnostics, format on save,
+  indent guides, smooth scroll, inlay hints, auto pairs, git signs, inline blame) and the
+  diagnostics display (`<leader>uv`) now survive a restart. Change that setting in your config and
+  the config wins again. `:Lumen forget` drops everything you picked, and `remember = false` turns
+  it off.
+
 ## 0.4.0
 
 - **The `yazi` pack replaces the explorer.** With it enabled, `<leader>e` opens yazi at the project

@@ -36,6 +36,9 @@ local defaults = {
   -- (your own extra plugins still update to latest), "latest" = newest of everything
   update_channel = "stable",
   inlay_hints = true,
+  -- remember the colorscheme, the <leader>u toggles and the diagnostics display you pick, across
+  -- restarts (until you change that setting here; :Lumen forget drops them all)
+  remember = true,
 
   -- Lumen's own zero-dependency UI
   statusline = true,

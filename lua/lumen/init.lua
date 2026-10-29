@@ -9,7 +9,7 @@
 --               autocmds, commands and Lumen's UI.
 local M = {}
 
-M.version = "0.4.0"
+M.version = "0.5.0"
 
 local did_init = false
 
@@ -89,11 +89,28 @@ function M.setup(opts)
     end,
   })
 
-  local ok = pcall(vim.cmd.colorscheme, config.colorscheme)
+  -- the scheme you last picked (lumen.remember), unless lua/config/lumen.lua changed it since
+  local remember = require("lumen.remember")
+  local scheme, background = remember.colorscheme()
+  local ok = false
+  if scheme ~= config.colorscheme then
+    local bg = vim.o.background
+    vim.o.background = background or bg
+    ok = pcall(vim.cmd.colorscheme, scheme)
+    if not ok then
+      vim.o.background = bg -- uninstalled since: back to the config's
+    end
+  elseif background then
+    vim.o.background = background
+  end
+  if not ok then
+    ok = pcall(vim.cmd.colorscheme, config.colorscheme)
+  end
   if not ok then
     vim.notify(("Lumen: colorscheme `%s` not found, using `lumen`"):format(config.colorscheme), vim.log.levels.WARN)
     vim.cmd.colorscheme("lumen")
   end
+  remember.watch_colorscheme()
 
   -- everything else uses snacks.nvim. Normally it is already loaded (priority 1000 > 900), but on
   -- a first launch lazy.nvim loads the install colorscheme (`lumen`) before anything else, so wait

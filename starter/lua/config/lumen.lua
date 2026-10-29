@@ -25,6 +25,8 @@ return {
   diagnostics = "text", -- "text" | "lines" | "signs"  (cycle live with <leader>uv)
   inlay_hints = true,
   smooth_scroll = true,
+  -- keep the colorscheme and <leader>u toggles you pick across restarts (:Lumen forget resets them)
+  remember = true,
   tmux_navigation = true,
 
   -- extra tasks for <leader>rt next to the auto-discovered ones (package.json, Makefile, cargo,

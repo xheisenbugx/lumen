@@ -250,6 +250,37 @@ if _G.Snacks then
       end,
     }):map("<leader>uB")
   end
+
+  -- keep what you toggle across restarts (lumen.remember; the colorscheme and 'background' too).
+  -- Left out: per-buffer (treesitter, format on save for a buffer) and passing (zen, zoom, dim) toggles
+  local remember = require("lumen.remember")
+  for _, id in ipairs({ "spell", "wrap", "relativenumber", "line_number", "conceallevel", "diagnostics" }) do
+    remember.toggle(id)
+  end
+  remember.toggle("format_on_save_global")
+  remember.toggle("auto_pairs")
+  -- snacks enables these on its own (indent on the first file, scroll at UIEnter): set its config
+  for _, id in ipairs({ "indent", "scroll" }) do
+    remember.toggle(id, {
+      base = function()
+        return Snacks.config[id].enabled ~= false
+      end,
+      apply = function(state)
+        Snacks.config[id].enabled = state
+      end,
+    })
+  end
+  -- inlay hints are per buffer: the remembered state is the default for buffers that attach
+  remember.toggle("inlay_hints", {
+    base = function()
+      return config.inlay_hints ~= false
+    end,
+    apply = function(state)
+      config.inlay_hints = state
+    end,
+  })
+  remember.toggle("git_signs", { plugin = "gitsigns.nvim" })
+  remember.toggle("inline_blame", { plugin = "gitsigns.nvim" })
 end
 map("n", "<leader>uC", function()
   if _G.Snacks then

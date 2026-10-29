@@ -9,6 +9,11 @@ local M = {}
 
 M.modes = { "text", "lines", "signs" }
 M.mode = config.diagnostics
+-- the mode you last cycled to (lumen.remember), unless the config changed it since
+local saved = require("lumen.remember").get("diagnostics", config.diagnostics)
+if vim.tbl_contains(M.modes, saved) then
+  M.mode = saved
+end
 
 local function apply()
   local severity = vim.diagnostic.severity
@@ -46,6 +51,7 @@ function M.cycle()
     end
   end
   M.mode = M.modes[idx % #M.modes + 1]
+  require("lumen.remember").set("diagnostics", M.mode, config.diagnostics)
   apply()
   Lumen.notify("Diagnostics: " .. ({ text = "virtual text", lines = "virtual lines", signs = "signs only" })[M.mode])
 end
