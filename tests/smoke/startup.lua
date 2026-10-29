@@ -601,8 +601,10 @@ return function(t)
         vim.defer_fn(function()
           local md = { wrap = vim.wo.wrap, spell = vim.wo.spell }
           vim.cmd.edit(vim.fn.tempname() .. ".lua")
+          vim.wait(50)
           local lua = vim.wo.wrap
           vim.cmd.edit(vim.fn.tempname() .. ".md")
+          vim.wait(50)
           io.stdout:write(vim.json.encode({ md = md, lua = lua, md2 = vim.wo.wrap }) .. "\n")
           vim.cmd("qa!")
         end, 300)
@@ -612,6 +614,38 @@ return function(t)
       assert(res.md and res.md.wrap == false and res.md2 == false, "markdown wrap back on: " .. vim.inspect(res))
       assert(res.md.spell == true and res.lua == false, "other settings changed: " .. vim.inspect(res))
       vim.fn.delete(md)
+      -- 6. the same when a filetype plugin sets wrap at every BufWinEnter, after FileType (org.nvim's
+      -- indent mode does): Lumen re-applies the pick once it's done
+      local plugin = {
+        ["lua/config/autocmds.lua"] = [[
+          vim.filetype.add({ extension = { orgt = "orgt" } })
+          vim.api.nvim_create_autocmd("BufWinEnter", { callback = function(ev)
+            if vim.bo[ev.buf].filetype == "orgt" then vim.wo[0][0].wrap = true end
+          end })
+        ]],
+      }
+      local org = vim.fn.tempname() .. ".orgt"
+      vim.fn.writefile({ "* notes" }, org)
+      res, out = child((in_md:gsub("MD", org)), plugin)
+      assert(res.before == true and res.after == false, vim.inspect(res) .. (out.stderr or ""))
+      res, out = child(
+        [[
+        vim.defer_fn(function()
+          local first = vim.wo.wrap
+          vim.cmd("split | enew | buffer #")
+          vim.wait(50)
+          io.stdout:write(vim.json.encode({ first = first, split = vim.wo.wrap }) .. "\n")
+          vim.cmd("qa!")
+        end, 300)
+      ]],
+        plugin,
+        { org }
+      )
+      assert(
+        res.first == false and res.split == false,
+        "the plugin's wrap won: " .. vim.inspect(res) .. (out.stderr or "")
+      )
+      vim.fn.delete(org)
     end)
     if saved then
       vim.fn.writefile(saved, file)

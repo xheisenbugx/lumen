@@ -3,6 +3,12 @@
 What changed for you, newest first. `:Lumen update` shows the sections newer than the version you
 were running, and `:Lumen news` shows them all.
 
+## 0.5.2
+
+- **Remembered toggles hold in org files (and other plugin filetypes).** org.nvim's indent mode turns
+  `wrap` on every time an org buffer is shown, after Lumen had re-applied your pick. Lumen now
+  re-applies it once filetype plugins are done, in every window showing the buffer.
+
 ## 0.5.1
 
 - **Toggles you flip in markdown, text or gitcommit buffers are remembered.** Lumen turns `wrap`
