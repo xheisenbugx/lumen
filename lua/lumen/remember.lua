@@ -183,18 +183,28 @@ function M.toggle(id, opts)
       end
     end
     if per_ft then
-      vim.api.nvim_create_autocmd("FileType", {
+      -- one tick after the filetype is set and the buffer is shown: filetype plugins set window
+      -- options in both (org.nvim's indent mode turns wrap on at every BufWinEnter)
+      vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter" }, {
         group = vim.api.nvim_create_augroup("lumen_remember_" .. id, { clear = true }),
         callback = function(ev)
-          local entry = load()[key .. ":" .. ev.match]
-          -- like the filetype's own settings: for the window showing the buffer
-          if type(entry) ~= "table" or ev.buf ~= vim.api.nvim_get_current_buf() then
-            return
-          end
-          -- only over the value the filetype gave when you picked (a config change wins)
-          if t:get() == entry.base and entry.value ~= entry.base then
-            set(entry.value)
-          end
+          vim.schedule(function()
+            if not vim.api.nvim_buf_is_valid(ev.buf) then
+              return
+            end
+            local entry = load()[key .. ":" .. vim.bo[ev.buf].filetype]
+            if type(entry) ~= "table" or entry.value == entry.base then
+              return
+            end
+            for _, win in ipairs(vim.fn.win_findbuf(ev.buf)) do
+              vim.api.nvim_win_call(win, function()
+                -- only over the value the filetype gave when you picked (a config change wins)
+                if t:get() == entry.base then
+                  set(entry.value)
+                end
+              end)
+            end
+          end)
         end,
       })
     end
