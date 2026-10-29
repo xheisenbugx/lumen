@@ -581,6 +581,37 @@ return function(t)
       assert(res.file == 0, ":Lumen forget kept the file: " .. vim.inspect(res) .. (out.stderr or ""))
       res = child("vim.defer_fn(function() " .. report .. " end, 300)")
       assert(res.colors == "lumen" and not res.wrap and res.autoformat ~= false, vim.inspect(res))
+      -- 5. a toggle over a filetype's own value (prose: wrap on in markdown) is kept for that filetype
+      -- (regression: wrap off in markdown matched the global value, so nothing was saved)
+      local md = vim.fn.tempname() .. ".md"
+      vim.fn.writefile({ "# notes" }, md)
+      local in_md = [[
+        vim.defer_fn(function()
+          vim.cmd.edit("MD")
+          local before = vim.wo.wrap
+          Snacks.toggle.toggles.wrap:toggle()
+          vim.wait(100)
+          io.stdout:write(vim.json.encode({ before = before, after = vim.wo.wrap }) .. "\n")
+          vim.cmd("qa!")
+        end, 300)
+      ]]
+      res, out = child((in_md:gsub("MD", md)))
+      assert(res.before == true and res.after == false, vim.inspect(res) .. (out.stderr or ""))
+      local probe = [[
+        vim.defer_fn(function()
+          local md = { wrap = vim.wo.wrap, spell = vim.wo.spell }
+          vim.cmd.edit(vim.fn.tempname() .. ".lua")
+          local lua = vim.wo.wrap
+          vim.cmd.edit(vim.fn.tempname() .. ".md")
+          io.stdout:write(vim.json.encode({ md = md, lua = lua, md2 = vim.wo.wrap }) .. "\n")
+          vim.cmd("qa!")
+        end, 300)
+      ]]
+      -- the markdown file from the command line (its FileType comes during startup), then others
+      res, out = child(probe, nil, { md })
+      assert(res.md and res.md.wrap == false and res.md2 == false, "markdown wrap back on: " .. vim.inspect(res))
+      assert(res.md.spell == true and res.lua == false, "other settings changed: " .. vim.inspect(res))
+      vim.fn.delete(md)
     end)
     if saved then
       vim.fn.writefile(saved, file)
