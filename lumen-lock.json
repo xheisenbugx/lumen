@@ -1,7 +1,7 @@
 {
   "SchemaStore.nvim": {
     "branch": "main",
-    "commit": "06012297e4d5d089ce5ac4cc8011a8f3c0148190"
+    "commit": "d3e2250efab001fba40d2226361c0060ccf18fd6"
   },
   "blink.cmp": {
     "branch": "main",
@@ -61,7 +61,7 @@
   },
   "mini.hipatterns": {
     "branch": "main",
-    "commit": "247c0173579a29af60f25f00671a75c57090be9c"
+    "commit": "b435ff459774b7ec234f1ae2834062f5829e75fa"
   },
   "mini.icons": {
     "branch": "main",
@@ -121,7 +121,7 @@
   },
   "nvim-lspconfig": {
     "branch": "master",
-    "commit": "cc404d425c7752f56b8eaa269107be44d888ea51"
+    "commit": "993d048db0d83d8e8ba3f9cb376456321acdcce3"
   },
   "nvim-nio": {
     "branch": "master",
@@ -129,7 +129,7 @@
   },
   "nvim-treesitter": {
     "branch": "main",
-    "commit": "610734c5d3e59761d5f79318d120633374537fa5"
+    "commit": "915f2bd3d4e2a33704bfc476b5137e9befa82f3d"
   },
   "nvim-treesitter-textobjects": {
     "branch": "main",
@@ -141,7 +141,7 @@
   },
   "octo.nvim": {
     "branch": "master",
-    "commit": "302ff3223e9ba954955cc518b0199da62d2a757f"
+    "commit": "419e67aee457406423e7cb4fc41d721ecda61bcd"
   },
   "oil.nvim": {
     "branch": "master",
@@ -149,7 +149,7 @@
   },
   "org.nvim": {
     "branch": "main",
-    "commit": "5222ecdf86103d911e03525ea5873a7349dee0e5"
+    "commit": "e4a984f78bd426a77309c71a9d2534fbf4293639"
   },
   "persistence.nvim": {
     "branch": "main",
@@ -193,6 +193,6 @@
   },
   "yazi.nvim": {
     "branch": "main",
-    "commit": "186e99e7c92b6b4a3403f48ca50ad92b98dda075"
+    "commit": "8f777d4fce2463c8a4e3326e5eb1e1ae6f5e05cf"
   }
 }
