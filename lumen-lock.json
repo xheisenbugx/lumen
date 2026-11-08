@@ -45,7 +45,7 @@
   },
   "mason-lspconfig.nvim": {
     "branch": "main",
-    "commit": "3a5cd6d562a01f6829a35ae761dc383264ea452b"
+    "commit": "55eceab8975036ac43a4176cbfe0d4bf1ddae93f"
   },
   "mason-nvim-dap.nvim": {
     "branch": "main",
@@ -129,7 +129,7 @@
   },
   "nvim-treesitter": {
     "branch": "main",
-    "commit": "915f2bd3d4e2a33704bfc476b5137e9befa82f3d"
+    "commit": "19bdfc04f40ed2ccb3340591d125f759b0406875"
   },
   "nvim-treesitter-textobjects": {
     "branch": "main",
@@ -149,7 +149,7 @@
   },
   "org.nvim": {
     "branch": "main",
-    "commit": "e4a984f78bd426a77309c71a9d2534fbf4293639"
+    "commit": "8bd9da43f4397a2db43856985d0fcbb20d05e2b6"
   },
   "persistence.nvim": {
     "branch": "main",
@@ -193,6 +193,6 @@
   },
   "yazi.nvim": {
     "branch": "main",
-    "commit": "8f777d4fce2463c8a4e3326e5eb1e1ae6f5e05cf"
+    "commit": "125f501a7b11fe80d9887df9c64302912bf83c43"
   }
 }
