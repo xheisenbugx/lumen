@@ -121,7 +121,7 @@
   },
   "nvim-lspconfig": {
     "branch": "master",
-    "commit": "443d92c6bea761ab54cdde46fb197a2b4d614bdd"
+    "commit": "05588aab66016c6836634b87ca2d392d097515f2"
   },
   "nvim-nio": {
     "branch": "master",
@@ -129,7 +129,7 @@
   },
   "nvim-treesitter": {
     "branch": "main",
-    "commit": "60c0f468de3e636fa660a419d537e8033aca4e39"
+    "commit": "04f17886f75416dfdc25374c950a52c63f0e98fe"
   },
   "nvim-treesitter-textobjects": {
     "branch": "main",
@@ -141,7 +141,7 @@
   },
   "octo.nvim": {
     "branch": "master",
-    "commit": "419e67aee457406423e7cb4fc41d721ecda61bcd"
+    "commit": "0ddca04c02aab8ba18d2072f9b855f3806adad54"
   },
   "oil.nvim": {
     "branch": "master",
@@ -193,6 +193,6 @@
   },
   "yazi.nvim": {
     "branch": "main",
-    "commit": "8423fcaaeb9d6a933534fedc4bdb0b8c0b2021e7"
+    "commit": "eb50c6a95fdf375caec06911f6d6fcb3abb1b172"
   }
 }
