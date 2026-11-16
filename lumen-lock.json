@@ -121,7 +121,7 @@
   },
   "nvim-lspconfig": {
     "branch": "master",
-    "commit": "05588aab66016c6836634b87ca2d392d097515f2"
+    "commit": "6e72b89d499455611f09f46d13ee9f79325406e5"
   },
   "nvim-nio": {
     "branch": "master",
@@ -149,7 +149,7 @@
   },
   "org.nvim": {
     "branch": "main",
-    "commit": "da4830efc6f2e64ea451a60594f243134eed6f5a"
+    "commit": "a994aa146373c3d9257134bf25f2431273087240"
   },
   "persistence.nvim": {
     "branch": "main",
@@ -193,6 +193,6 @@
   },
   "yazi.nvim": {
     "branch": "main",
-    "commit": "eb50c6a95fdf375caec06911f6d6fcb3abb1b172"
+    "commit": "d166b0f0a0968ae3933585281e82dd98debaf555"
   }
 }
