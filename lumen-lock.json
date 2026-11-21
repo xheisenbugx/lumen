@@ -57,23 +57,23 @@
   },
   "mini.ai": {
     "branch": "main",
-    "commit": "c2e6e88a9de01b5aec5c3cffee1277b9ac8a6d69"
+    "commit": "813d10a43d5d4eda4816e6a27eb6bf6250f75ea8"
   },
   "mini.hipatterns": {
     "branch": "main",
-    "commit": "7a79e5f000beb530ade0fa9faec70f01469dbcb3"
+    "commit": "012ae1f3070ad47973d09c730091be2ee4bef09c"
   },
   "mini.icons": {
     "branch": "main",
-    "commit": "fc90b3925a2a68282be06e28cfe0cbb366c75dad"
+    "commit": "5d58117d176c133f4cb5585ec8cb3450881c89a0"
   },
   "mini.pairs": {
     "branch": "main",
-    "commit": "eea81afc1b4de898de9bb310c2225f9225fd42b9"
+    "commit": "e332261859814c307e72458222070f84b6d6f4e8"
   },
   "mini.surround": {
     "branch": "main",
-    "commit": "c17f9e2b2d685376b8ae7bb2cd8bb51dc7cd6d98"
+    "commit": "77f376bdebb3440ad13bc40b48062b29bccb7577"
   },
   "neotest": {
     "branch": "master",
@@ -149,7 +149,7 @@
   },
   "org.nvim": {
     "branch": "main",
-    "commit": "6c476183b99b6da4fc1fc0f9d79c8f7c1ec86d56"
+    "commit": "63f27143b4bb73ab217719bdff3127a23ebb9b9f"
   },
   "persistence.nvim": {
     "branch": "main",
@@ -193,6 +193,6 @@
   },
   "yazi.nvim": {
     "branch": "main",
-    "commit": "3452fdaeb823bc55e1ed715fc6de0a82fb16c894"
+    "commit": "bced2bd28da24b61c55acb02d93f4f3a3be63d76"
   }
 }
