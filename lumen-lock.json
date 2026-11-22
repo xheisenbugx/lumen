@@ -1,7 +1,7 @@
 {
   "SchemaStore.nvim": {
     "branch": "main",
-    "commit": "abc95e13502ff3acbed151de97667174b2e4132d"
+    "commit": "ffbe34a31de0cf696f688e7d9e226dc5b86b4323"
   },
   "blink.cmp": {
     "branch": "main",
@@ -129,7 +129,7 @@
   },
   "nvim-treesitter": {
     "branch": "main",
-    "commit": "37e52c733ada9d8d544d53a763140ef1ba404353"
+    "commit": "52773f0d13a0c11d0c3ef33c14ab6ecc1c17148b"
   },
   "nvim-treesitter-textobjects": {
     "branch": "main",
@@ -149,7 +149,7 @@
   },
   "org.nvim": {
     "branch": "main",
-    "commit": "63f27143b4bb73ab217719bdff3127a23ebb9b9f"
+    "commit": "1ff20d585f3988cfb3be459ef6f6673c40f75260"
   },
   "persistence.nvim": {
     "branch": "main",
@@ -193,6 +193,6 @@
   },
   "yazi.nvim": {
     "branch": "main",
-    "commit": "bced2bd28da24b61c55acb02d93f4f3a3be63d76"
+    "commit": "2402109610d971d4379d86d7e8cf4ec88dee2971"
   }
 }
