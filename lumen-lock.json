@@ -81,7 +81,7 @@
   },
   "neotest-golang": {
     "branch": "main",
-    "commit": "65b2be63c3de00e6f15c05388ebdc8d603dbd727"
+    "commit": "328186b65409afc85412295e7583537d75003ece"
   },
   "neotest-jest": {
     "branch": "main",
@@ -193,6 +193,6 @@
   },
   "yazi.nvim": {
     "branch": "main",
-    "commit": "2402109610d971d4379d86d7e8cf4ec88dee2971"
+    "commit": "4791a1d4f53bb34e20e3b4207b8ba239d8e8ee36"
   }
 }
