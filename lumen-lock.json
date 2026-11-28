@@ -1,7 +1,7 @@
 {
   "SchemaStore.nvim": {
     "branch": "main",
-    "commit": "56b010e943cce0ddd13fa062f447e66e072a6b16"
+    "commit": "6ad680dc81c58ae141c4e7533164ca54d65db2a0"
   },
   "blink.cmp": {
     "branch": "main",
@@ -193,6 +193,6 @@
   },
   "yazi.nvim": {
     "branch": "main",
-    "commit": "a6f53ac18ee63a0de52df7f7bfbc12083865db08"
+    "commit": "7e7066527a8667bf852f3cdcfb4da2c1a5213682"
   }
 }
